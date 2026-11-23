@@ -47,12 +47,21 @@ cd "C:\Personal Projects\Roblox-Meme-Flow"
 Outputs go to `outputs/<episode_id>/` (`plan.json`, `storyboard_prompt.txt`, `scene_prompts.md`, `captions.srt`).
 
 ### 3. Sign In Once to Google Flow (`gflow auth login`)
-Authenticate your local Google Flow session once and verify credits:
+First, make sure Playwright's Chromium binary is installed (needed if Google Chrome is not installed on the system):
+```powershell
+.\.venv\Scripts\playwright.exe install chromium
+```
+Then authenticate your local Google Flow session once and verify credits:
 ```powershell
 .\.venv\Scripts\gflow.exe auth login
 .\.venv\Scripts\gflow.exe auth status
 .\.venv\Scripts\gflow.exe credits
 ```
+> **Note:** If Google blocks sign-in in Playwright's internal Chromium, either install Google Chrome or point `CHROME_BINARY` to Brave/Edge during login:
+> ```powershell
+> $env:CHROME_BINARY = "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+> .\.venv\Scripts\gflow.exe auth login --browser chrome
+> ```
 
 ### 4. Generate Safe Manifest (`--max-credits 0`) or Live Google Flow Run
 ```powershell
