@@ -57,11 +57,7 @@ Then authenticate your local Google Flow session once and verify credits:
 .\.venv\Scripts\gflow.exe auth status
 .\.venv\Scripts\gflow.exe credits
 ```
-> **Note:** If Google blocks sign-in in Playwright's internal Chromium, either install Google Chrome or point `CHROME_BINARY` to Brave/Edge during login:
-> ```powershell
-> $env:CHROME_BINARY = "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-> .\.venv\Scripts\gflow.exe auth login --browser chrome
-> ```
+> **Note:** `gflow-cli` (`v0.105.1`) only supports **Playwright internal Chromium** (`--browser internal`, used automatically when Google Chrome is absent) or **Google Chrome** (`--browser chrome`). Brave/Edge are not natively supported by `gflow auth login`. If Google blocks sign-in in internal Chromium, install Google Chrome and re-run `gflow auth login --browser chrome`.
 
 ### 4. Generate Safe Manifest (`--max-credits 0`) or Live Google Flow Run
 ```powershell
