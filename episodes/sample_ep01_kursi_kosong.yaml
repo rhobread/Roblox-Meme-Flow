@@ -1,0 +1,82 @@
+episode_id: "2026-11-23-ep01-kursi-kosong"
+title_id: "Di Dunia Ini, Bilang OTW Langsung Melayang"
+world_rule_id: "Di dunia ini, siapa pun yang chat OTW padahal masih rebahan langsung melayang ke langit."
+aspect_ratio: "9:16"
+image_model: "nano-2.1"
+video_model: "omni-1.2-flash"
+tts_voice: "id-ID-ArdiNeural"
+tts_rate: "+12%"
+
+characters:
+  - handle: "@Raka"
+    role: "Protagonis anak kos yang hobi telat"
+    visual_description: "Blocky 3D plastic toy avatar, bright yellow cylindrical head, black spiky plastic hair, rectangular torso and limbs"
+    wardrobe: "oversized faded blue hoodie, dark grey blocky shorts, white sneakers"
+    expression_default: "smug half-smile with tiny black dot eyes"
+  - handle: "@Tono"
+    role: "Teman nongkrong yang sudah nunggu lama di warkop"
+    visual_description: "Blocky 3D plastic toy avatar, warm tan cylindrical head, red backwards cap, rectangular torso and limbs"
+    wardrobe: "green varsity jacket, black blocky pants, red sneakers"
+    expression_default: "unimpressed flat-mouth stare"
+
+locations:
+  - handle: "@KamarKosRaka"
+    visual_description: "Cozy cramped Indonesian boarding room built in colorful blocky 3D game architecture, single mattress on the floor, electric fan, messy desk, poster on wall"
+    lighting: "warm late-afternoon sunlight through a small shuttered window"
+    key_props:
+      - "glowing smartphone held by avatar"
+      - "spinning white desk fan"
+      - "single bed with blue checkered blanket"
+  - handle: "@WarkopMalam"
+    visual_description: "Vibrant Indonesian street-side instant noodle stall in blocky 3D plastic game style, blue tarpaulin roof, long wooden bench, hanging instant noodle sachets, warm string lights"
+    lighting: "warm tungsten bulbs against a deep dusk sky"
+    key_props:
+      - "steaming bowl of instant noodles"
+      - "plastic iced tea cup"
+      - "wooden table"
+
+scenes:
+  - scene_number: 1
+    beat: "hook"
+    duration_seconds: 6
+    characters:
+      - "@Raka"
+    location: "@KamarKosRaka"
+    narration_id: "Di dunia ini, kalau kamu chat OTW padahal masih rebahan, badan kamu langsung melayang ke langit."
+    visual_prompt: "Inside @KamarKosRaka, @Raka lies flat on his bed wrapped in a blue checkered blanket, smugly tapping his glowing smartphone with both blocky hands, while a mysterious pale cyan anti-gravity aura suddenly sparks beneath the mattress."
+    camera: "medium top-down vertical shot pushing slowly toward @Raka"
+    audio_sfx: "message sent ding followed by rising sci-fi hum"
+
+  - scene_number: 2
+    beat: "escalation"
+    duration_seconds: 6
+    characters:
+      - "@Tono"
+    location: "@WarkopMalam"
+    narration_id: "Tono udah nunggu dua jam di warkop sambil ngeliatin es tehnya mencair jadi air doa."
+    visual_prompt: "At @WarkopMalam, @Tono sits alone on the wooden bench staring deadpan at a plastic cup of melted iced tea and his buzzing smartphone on the table, while steam drifts lazily from an untouched noodle bowl."
+    camera: "static deadpan close-up vertical shot with a subtle comedic zoom on @Tono"
+    audio_sfx: "street crickets, gentle warkop chatter, sad comedic chime"
+
+  - scene_number: 3
+    beat: "twist"
+    duration_seconds: 6
+    characters:
+      - "@Raka"
+    location: "@KamarKosRaka"
+    narration_id: "Raka nekat ngetik, sabar bro bentar lagi nyampe. Seketika dia langsung nembus plafon kosan bareng kasurnya."
+    visual_prompt: "Inside @KamarKosRaka, @Raka widens his eyes in silent plastic panic as he and the entire mattress rocket straight upward, punching a neat square hole through the blocky ceiling while slippers spin in mid-air."
+    camera: "low-angle dynamic vertical tilt tracking @Raka shooting upward"
+    audio_sfx: "cartoon rocket whoosh, wooden ceiling crunch, comedic boing"
+
+  - scene_number: 4
+    beat: "outro"
+    duration_seconds: 6
+    characters:
+      - "@Raka"
+      - "@Tono"
+    location: "@WarkopMalam"
+    narration_id: "Akhirnya Raka beneran nyampe warkop, tapi parkirnya di atas awan. Tag temen kamu yang bilangnya OTW terus."
+    visual_prompt: "Outside @WarkopMalam at dusk, @Tono leans back looking straight up into the sky with a flat deadpan face, while tiny @Raka floats high above the blue tarpaulin roof clinging to his mattress and waving politely."
+    camera: "wide vertical low-angle shot framing @Tono in foreground and floating @Raka high in the dusk sky"
+    audio_sfx: "wind whistling, tiny distant wave squeak, upbeat meme outro sting"

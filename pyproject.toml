@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roblox-meme-flow"
+version = "0.1.0"
+description = "Daily Indonesian 'Di Dunia Ini' blocky-avatar meme video pipeline powered by Google Flow (gflow-cli), edge-tts, and ffmpeg."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gflow-cli",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "edge-tts>=6.1",
+    "imageio-ffmpeg>=0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+rmf = "roblox_meme_flow.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
