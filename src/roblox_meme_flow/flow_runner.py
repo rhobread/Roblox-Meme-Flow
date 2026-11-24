@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from roblox_meme_flow.layout import EpisodeLayout
 from roblox_meme_flow.models import EpisodeSpec
 from roblox_meme_flow.prompt_builder import (
     build_reference_prompts,
@@ -46,12 +47,13 @@ def build_gflow_manifest(
     storyboard = build_storyboard_prompt(ep)
     scenes = build_scene_video_prompts(ep)
 
+    layout = EpisodeLayout.for_episode(ep_dir.parent, ep_dir.name)
     commands: list[dict[str, object]] = []
     ref_files: dict[str, Path] = {}
 
     for handle, prompt in refs.items():
         safe_name = handle.lstrip("@")
-        out_file = ep_dir / "refs" / f"{safe_name}.jpg"
+        out_file = layout.refs_dir / f"{safe_name}.jpg"
         ref_files[handle] = out_file
         wire_prompt = strip_at_handles_for_gflow(prompt)
         commands.append(
@@ -76,7 +78,7 @@ def build_gflow_manifest(
             }
         )
 
-    storyboard_out = ep_dir / "storyboard.jpg"
+    storyboard_out = layout.images_dir / "storyboard.jpg"
     wire_storyboard = strip_at_handles_for_gflow(storyboard)
     storyboard_args = [
         gflow_bin,
@@ -105,7 +107,7 @@ def build_gflow_manifest(
     )
 
     for scene in scenes:
-        clip_out = ep_dir / "clips" / f"scene_{scene['scene_number']:02d}.mp4"
+        clip_out = layout.clips_dir / f"scene_{scene['scene_number']:02d}.mp4"
         wire_scene = strip_at_handles_for_gflow(str(scene["prompt"]))
         args = [
             gflow_bin,
@@ -176,12 +178,11 @@ def write_and_optionally_run_flow(
     execute: bool = False,
     stages: set[str] | None = None,
 ) -> Path:
-    ep_dir = out_dir / ep.episode_id
-    (ep_dir / "refs").mkdir(parents=True, exist_ok=True)
-    (ep_dir / "clips").mkdir(parents=True, exist_ok=True)
+    layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
+    layout.ensure_dirs()
 
-    manifest = build_gflow_manifest(ep, ep_dir, spend=spend)
-    manifest_path = ep_dir / "gflow_manifest.json"
+    manifest = build_gflow_manifest(ep, layout.root, spend=spend)
+    manifest_path = layout.logs_dir / "gflow_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if not execute:
@@ -232,7 +233,7 @@ def write_and_optionally_run_flow(
             failed_step = record
             break
 
-    log_path = ep_dir / "gflow_run_log.json"
+    log_path = layout.logs_dir / "gflow_run_log.json"
     log_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
 
     if failed_step is not None:

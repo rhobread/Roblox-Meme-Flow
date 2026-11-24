@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from roblox_meme_flow.layout import EpisodeLayout
 from roblox_meme_flow.models import EpisodeSpec
 from roblox_meme_flow.prompt_builder import build_srt
 
@@ -116,12 +117,12 @@ def _fit_scene_audio(
 
 
 def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Path]:
-    ep_dir = out_dir / ep.episode_id
-    vo_dir = ep_dir / "vo_scenes"
-    vo_dir.mkdir(parents=True, exist_ok=True)
+    layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
+    layout.ensure_dirs()
 
-    mp3_path = ep_dir / "voiceover.mp3"
-    srt_path = ep_dir / "captions.srt"
+    vo_dir = layout.vo_scenes_dir
+    mp3_path = layout.audio_dir / "voiceover.mp3"
+    srt_path = layout.subtitles_dir / "captions.srt"
     srt_path.write_text(build_srt(ep), encoding="utf-8")
 
     ffmpeg = find_ffmpeg()
@@ -203,12 +204,11 @@ def assemble_video(
     if not clips:
         raise ValueError("At least one video clip is required to assemble the final video.")
 
-    ep_dir = out_dir / ep.episode_id
-    ep_dir.mkdir(parents=True, exist_ok=True)
+    layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
+    layout.ensure_dirs()
 
     # Normalize each clip to uniform 1080x1920 30fps H.264/AAC first so concat never glitches
-    norm_dir = ep_dir / "clips_norm"
-    norm_dir.mkdir(parents=True, exist_ok=True)
+    norm_dir = layout.clips_norm_dir
     normalized_clips: list[Path] = []
     all_have_audio = True
 
@@ -258,11 +258,11 @@ def assemble_video(
             raise RuntimeError(f"ffmpeg normalize failed for {clip.name}: {proc.stderr[-1000:]}")
         normalized_clips.append(norm_path)
 
-    concat_list = ep_dir / "concat_clips.txt"
+    concat_list = layout.logs_dir / "concat_clips.txt"
     lines = [f"file '{c.resolve().as_posix()}'" for c in normalized_clips]
     concat_list.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    output_mp4 = ep_dir / "final_9x16.mp4"
+    output_mp4 = layout.final_dir / "final_9x16.mp4"
 
     vf_filters = ["fps=30"]
     if srt_path and srt_path.exists():

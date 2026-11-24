@@ -81,11 +81,17 @@ def test_gflow_manifest_defaults_to_zero_max_credits_and_strips_at(tmp_path: Pat
 
 def test_export_plan_and_srt_generation(tmp_path: Path) -> None:
     ep = load_episode(SAMPLE_EPISODE)
-    ep_dir = export_plan(ep, tmp_path)
-    assert (ep_dir / "plan.json").exists()
-    assert (ep_dir / "storyboard_prompt.txt").exists()
-    assert (ep_dir / "scene_prompts.md").exists()
-    assert (ep_dir / "captions.srt").exists()
+    ep_dir = export_plan(ep, tmp_path, source_yaml=SAMPLE_EPISODE)
+    assert (ep_dir / "01_final").is_dir()
+    assert (ep_dir / "02_clips").is_dir()
+    assert (ep_dir / "03_images" / "refs").is_dir()
+    assert (ep_dir / "04_audio").is_dir()
+    assert (ep_dir / "05_subtitles" / "captions.srt").exists()
+    assert (ep_dir / "06_scripts" / "plan.json").exists()
+    assert (ep_dir / "06_scripts" / "storyboard_prompt.txt").exists()
+    assert (ep_dir / "06_scripts" / "scene_prompts.md").exists()
+    assert (ep_dir / "06_scripts" / SAMPLE_EPISODE.name).exists()
+    assert (ep_dir / "99_logs").is_dir()
 
     refs = build_reference_prompts(ep)
     assert "@Raka" in refs and "@WarkopMalam" in refs

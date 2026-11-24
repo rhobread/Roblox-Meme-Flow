@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 from pathlib import Path
 
+from roblox_meme_flow.layout import EpisodeLayout
 from roblox_meme_flow.models import EpisodeSpec
 
 
@@ -136,9 +138,9 @@ def build_srt(ep: EpisodeSpec) -> str:
     return "\n".join(entries).strip() + "\n"
 
 
-def export_plan(ep: EpisodeSpec, out_dir: Path) -> Path:
-    ep_dir = out_dir / ep.episode_id
-    ep_dir.mkdir(parents=True, exist_ok=True)
+def export_plan(ep: EpisodeSpec, out_dir: Path, source_yaml: Path | None = None) -> Path:
+    layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
+    layout.ensure_dirs()
 
     refs = build_reference_prompts(ep)
     storyboard = build_storyboard_prompt(ep)
@@ -158,11 +160,13 @@ def export_plan(ep: EpisodeSpec, out_dir: Path) -> Path:
         "scene_prompts": scene_prompts,
     }
 
-    (ep_dir / "plan.json").write_text(
+    (layout.scripts_dir / "plan.json").write_text(
         json.dumps(plan_payload, indent=2, ensure_ascii=False), encoding="utf-8"
     )
-    (ep_dir / "storyboard_prompt.txt").write_text(storyboard, encoding="utf-8")
-    (ep_dir / "captions.srt").write_text(srt_content, encoding="utf-8")
+    (layout.scripts_dir / "storyboard_prompt.txt").write_text(storyboard, encoding="utf-8")
+    (layout.subtitles_dir / "captions.srt").write_text(srt_content, encoding="utf-8")
+    if source_yaml and source_yaml.exists():
+        shutil.copy2(source_yaml, layout.scripts_dir / source_yaml.name)
 
     md_lines = [
         f"# Production Sheet: {ep.title_id}",
@@ -204,5 +208,5 @@ def export_plan(ep: EpisodeSpec, out_dir: Path) -> Path:
             ]
         )
 
-    (ep_dir / "scene_prompts.md").write_text("\n".join(md_lines), encoding="utf-8")
-    return ep_dir
+    (layout.scripts_dir / "scene_prompts.md").write_text("\n".join(md_lines), encoding="utf-8")
+    return layout.root

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from roblox_meme_flow.audio_video import assemble_video, find_ffmpeg, generate_voiceover_and_srt
 from roblox_meme_flow.flow_runner import find_gflow_executable, write_and_optionally_run_flow
+from roblox_meme_flow.layout import EpisodeLayout
 from roblox_meme_flow.models import load_episode
 from roblox_meme_flow.prompt_builder import export_plan
 from roblox_meme_flow.validator import has_errors, validate_episode
@@ -54,14 +55,15 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    ep = load_episode(Path(args.episode))
+    ep_path = Path(args.episode)
+    ep = load_episode(ep_path)
     issues = validate_episode(ep)
     for issue in issues:
         print(f"[{issue.severity.upper()}] {issue.code}: {issue.message}")
     if has_errors(issues):
         print("Aborting plan export due to validation errors.")
         return 1
-    ep_dir = export_plan(ep, Path(args.out_dir))
+    ep_dir = export_plan(ep, Path(args.out_dir), source_yaml=ep_path)
     print(f"Exported production plan to: {ep_dir}")
     return 0
 
@@ -106,8 +108,9 @@ def cmd_assemble(args: argparse.Namespace) -> int:
     ep = load_episode(Path(args.episode))
     clips = [Path(c) for c in args.clips]
     out_dir = Path(args.out_dir)
-    vo = Path(args.voiceover) if args.voiceover else (out_dir / ep.episode_id / "voiceover.mp3")
-    srt = Path(args.srt) if args.srt else (out_dir / ep.episode_id / "captions.srt")
+    layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
+    vo = Path(args.voiceover) if args.voiceover else (layout.audio_dir / "voiceover.mp3")
+    srt = Path(args.srt) if args.srt else (layout.subtitles_dir / "captions.srt")
     output_mp4 = assemble_video(
         ep=ep,
         clips=clips,
