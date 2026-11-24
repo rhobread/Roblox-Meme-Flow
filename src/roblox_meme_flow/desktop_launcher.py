@@ -13,6 +13,10 @@ HOST = "127.0.0.1"
 PORT = 8787
 APP_URL = f"http://{HOST}:{PORT}"
 
+UI_CLOSE_GRACE_SECONDS = 4.0
+BROWSER_EXIT_HEARTBEAT_TIMEOUT_SECONDS = 20.0
+ORPHAN_STARTUP_GRACE_SECONDS = 25.0
+
 
 def _is_port_open(host: str, port: int) -> bool:
     try:
@@ -49,25 +53,70 @@ def _find_app_browser() -> str | None:
     return None
 
 
-def _app_browser_running(profile_marker: str) -> bool:
-    """Return True if any Chromium app-mode browser process using our profile is still running."""
-    try:
-        ps_cmd = (
-            "Get-CimInstance Win32_Process | "
-            f"Where-Object {{ $_.CommandLine -like '*{profile_marker}*' }} | "
-            "Measure-Object | Select-Object -ExpandProperty Count"
-        )
-        proc = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_cmd],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            check=False,
-        )
-        return int(proc.stdout.strip() or "0") > 0
-    except Exception:
+def should_auto_shutdown(
+    *,
+    now: float,
+    started_at: float,
+    last_heartbeat: float,
+    ui_closed_at: float | None,
+    browser_exited: bool,
+    has_running_jobs: bool,
+) -> bool:
+    """Decide whether the Studio background server should exit cleanly.
+
+    Rules:
+    - Never kill an active background job mid-render (protects spent credits).
+    - If the UI explicitly signalled window close (`ui_closed_at`) and didn't reload within
+      `UI_CLOSE_GRACE_SECONDS`, shut down immediately.
+    - If the spawned Studio app browser process has exited and no UI heartbeat arrived for
+      `BROWSER_EXIT_HEARTBEAT_TIMEOUT_SECONDS`, shut down immediately.
+    - If no browser window is tracked and no heartbeat has arrived for > 30s after startup,
+      shut down automatically so no orphan background server lingers.
+    """
+    if has_running_jobs:
+        return False
+
+    if ui_closed_at is not None and (now - ui_closed_at) >= UI_CLOSE_GRACE_SECONDS:
         return True
+
+    if browser_exited:
+        # Allow a short startup grace window for initial browser launch / profile handoff.
+        if (now - started_at) >= ORPHAN_STARTUP_GRACE_SECONDS and (now - last_heartbeat) >= BROWSER_EXIT_HEARTBEAT_TIMEOUT_SECONDS:
+            return True
+        if (now - last_heartbeat) >= BROWSER_EXIT_HEARTBEAT_TIMEOUT_SECONDS and (now - started_at) >= 10.0:
+            return True
+
+    return False
+
+
+def _terminate_own_descendants() -> None:
+    """Cleanly terminate any leftover child processes spawned by this Studio process only.
+
+    Specifically cleans up Studio's isolated browser crashpad-handler or stray child tools
+    without ever touching the user's personal Brave/Edge/Chrome/VS Code processes.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        from roblox_meme_flow.win_silent import _get_descendant_pids
+
+        own_pid = os.getpid()
+        descendants = _get_descendant_pids(own_pid) - {own_pid}
+        if not descendants:
+            return
+        kernel32 = ctypes.windll.kernel32
+        PROCESS_TERMINATE = 0x0001
+        for pid in descendants:
+            handle = kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+            if handle:
+                try:
+                    kernel32.TerminateProcess(handle, 0)
+                finally:
+                    kernel32.CloseHandle(handle)
+    except Exception:
+        pass
 
 
 def main() -> int:
@@ -96,6 +145,7 @@ def main() -> int:
 
     started_here = False
     server = None
+    app = None
 
     if not _is_port_open(HOST, PORT):
         import uvicorn
@@ -123,6 +173,7 @@ def main() -> int:
     profile_dir = project_root / "outputs" / ".studio_app_profile"
     profile_dir.mkdir(parents=True, exist_ok=True)
 
+    proc: subprocess.Popen[bytes] | None = None
     if browser:
         proc = subprocess.Popen(
             [
@@ -132,27 +183,43 @@ def main() -> int:
                 "--window-size=1380,900",
                 "--no-first-run",
                 "--no-default-browser-check",
+                "--disable-background-mode",
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        if started_here:
-            # Wait for initial process, then keep server alive while any window with our
-            # dedicated .studio_app_profile remains open (handles Brave/Chrome handoff).
-            proc.wait()
-            time.sleep(2.0)
-            while _app_browser_running(".studio_app_profile"):
-                time.sleep(2.5)
-            if server is not None:
-                server.should_exit = True
-                time.sleep(0.3)
     else:
         import webbrowser
 
         webbrowser.open(APP_URL)
-        if started_here:
+
+    if started_here and app is not None:
+        try:
             while True:
-                time.sleep(1.0)
+                time.sleep(1.5)
+                snap = app.state.lifecycle_snapshot()
+                browser_exited = True if proc is None else (proc.poll() is not None)
+                if should_auto_shutdown(
+                    now=time.monotonic(),
+                    started_at=float(snap["started_at"]),
+                    last_heartbeat=float(snap["last_heartbeat"]),
+                    ui_closed_at=snap["ui_closed_at"],  # type: ignore[arg-type]
+                    browser_exited=browser_exited,
+                    has_running_jobs=bool(snap["has_running_jobs"]),
+                ):
+                    print("[SHUTDOWN] Studio window closed and idle; stopping background server.", flush=True)
+                    break
+        finally:
+            if server is not None:
+                server.should_exit = True
+                time.sleep(0.4)
+            _terminate_own_descendants()
+            try:
+                sys.stdout.flush()
+                sys.stderr.flush()
+            except Exception:
+                pass
+            os._exit(0)
 
     return 0
 

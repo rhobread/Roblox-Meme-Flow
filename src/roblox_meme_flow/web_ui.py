@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -125,6 +126,39 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     app = FastAPI(title="Roblox-Meme-Flow Studio", version="0.2.0")
     jobs: dict[str, JobState] = {}
     jobs_lock = threading.Lock()
+    lifecycle_lock = threading.Lock()
+    now_mono = time.monotonic()
+    lifecycle_state: dict[str, float | None] = {
+        "started_at": now_mono,
+        "last_heartbeat": now_mono,
+        "ui_closed_at": None,
+    }
+
+    def _touch_heartbeat() -> None:
+        with lifecycle_lock:
+            lifecycle_state["last_heartbeat"] = time.monotonic()
+            lifecycle_state["ui_closed_at"] = None
+
+    def _mark_ui_closing() -> None:
+        with lifecycle_lock:
+            lifecycle_state["ui_closed_at"] = time.monotonic()
+
+    def _has_running_jobs() -> bool:
+        with jobs_lock:
+            return any(j.status == "running" for j in jobs.values())
+
+    def _lifecycle_snapshot() -> dict[str, object]:
+        with lifecycle_lock:
+            snap = dict(lifecycle_state)
+        return {
+            "started_at": snap["started_at"],
+            "last_heartbeat": snap["last_heartbeat"],
+            "ui_closed_at": snap["ui_closed_at"],
+            "has_running_jobs": _has_running_jobs(),
+        }
+
+    app.state.lifecycle_snapshot = _lifecycle_snapshot
+    app.state.has_running_jobs = _has_running_jobs
 
     def _start_job(kind: str, fn) -> str:
         job_id = uuid.uuid4().hex[:10]
@@ -147,11 +181,22 @@ def create_app(project_root: Path | None = None) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
+        _touch_heartbeat()
         html_path = STATIC_DIR / "index.html"
         return HTMLResponse(
             html_path.read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
+
+    @app.post("/api/heartbeat")
+    def api_heartbeat() -> dict[str, object]:
+        _touch_heartbeat()
+        return {"ok": True, "has_running_jobs": _has_running_jobs()}
+
+    @app.post("/api/ui-closing")
+    def api_ui_closing() -> dict[str, object]:
+        _mark_ui_closing()
+        return {"ok": True}
 
     @app.get("/api/status")
     def api_status(refresh_credits: bool = False) -> dict[str, object]:

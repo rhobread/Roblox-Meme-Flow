@@ -8,6 +8,7 @@ from roblox_meme_flow.credit_guard import (
     estimate_episode_credits,
     record_render_spend,
 )
+from roblox_meme_flow.desktop_launcher import should_auto_shutdown
 from roblox_meme_flow.flow_runner import build_gflow_manifest
 from roblox_meme_flow.models import EpisodeSpec, load_episode
 from roblox_meme_flow.prompt_builder import (
@@ -311,4 +312,84 @@ def test_win_silent_never_hides_minimized_user_apps_only_gflow_playwright() -> N
         )
         is False
     )
+
+
+def test_desktop_launcher_auto_shutdown_and_heartbeat_endpoints() -> None:
+    # Active browser window open -> never auto-shutdown
+    assert (
+        should_auto_shutdown(
+            now=100.0,
+            started_at=0.0,
+            last_heartbeat=95.0,
+            ui_closed_at=None,
+            browser_exited=False,
+            has_running_jobs=False,
+        )
+        is False
+    )
+    # UI closed within F5 reload grace (<4s) -> wait
+    assert (
+        should_auto_shutdown(
+            now=102.0,
+            started_at=0.0,
+            last_heartbeat=99.0,
+            ui_closed_at=100.0,
+            browser_exited=False,
+            has_running_jobs=False,
+        )
+        is False
+    )
+    # UI closed past grace (>=4s) and idle -> auto-shutdown
+    assert (
+        should_auto_shutdown(
+            now=105.0,
+            started_at=0.0,
+            last_heartbeat=99.0,
+            ui_closed_at=100.0,
+            browser_exited=False,
+            has_running_jobs=False,
+        )
+        is True
+    )
+    # Active render job running -> never kill mid-render even if window closed
+    assert (
+        should_auto_shutdown(
+            now=200.0,
+            started_at=0.0,
+            last_heartbeat=99.0,
+            ui_closed_at=100.0,
+            browser_exited=True,
+            has_running_jobs=True,
+        )
+        is False
+    )
+    # Browser exited and heartbeat timed out (>=20s) -> auto-shutdown
+    assert (
+        should_auto_shutdown(
+            now=130.0,
+            started_at=0.0,
+            last_heartbeat=100.0,
+            ui_closed_at=None,
+            browser_exited=True,
+            has_running_jobs=False,
+        )
+        is True
+    )
+
+    app = create_app(EPISODES_DIR.parent)
+    client = TestClient(app)
+    r_hb = client.post("/api/heartbeat")
+    assert r_hb.status_code == 200
+    assert r_hb.json()["ok"] is True
+    assert app.state.lifecycle_snapshot()["ui_closed_at"] is None
+
+    r_close = client.post("/api/ui-closing")
+    assert r_close.status_code == 200
+    assert app.state.lifecycle_snapshot()["ui_closed_at"] is not None
+
+    # Subsequent heartbeat (e.g. after F5 refresh) clears ui_closed_at
+    r_hb2 = client.post("/api/heartbeat")
+    assert r_hb2.status_code == 200
+    assert app.state.lifecycle_snapshot()["ui_closed_at"] is None
+
 
