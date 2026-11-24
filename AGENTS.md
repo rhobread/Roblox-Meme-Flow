@@ -41,8 +41,8 @@ Always read and apply the relevant project skills before writing episode scripts
 - Never claim a live Google Flow render succeeded unless it was actually executed against a logged-in Chrome CDP session.
 - Validate changes before committing:
   - `.\.venv\Scripts\python.exe -m pytest -q`
-  - `.\.venv\Scripts\python.exe -m roblox_meme_flow.cli validate episodes\sample_ep01_kursi_kosong.yaml`
-- Never commit `.env`, `.venv/`, `outputs/`, generated media (`*.mp4`, `*.mp3`, `*.png`), or Chrome profile data.
+  - `.\.venv\Scripts\python.exe -m roblox_meme_flow.cli validate episodes\viral_ep04_wifi_tetangga_fast.yaml`
+- Never commit `.env`, `.venv/`, `outputs/`, `tmp/`, generated episodes (`episodes/*.yaml` except the starter template `episodes/viral_ep04_wifi_tetangga_fast.yaml`), generated media (`*.mp4`, `*.mp3`, `*.png`, `*.jpg`), or Chrome profile data.
 
 ## Publishing And Deployment
 

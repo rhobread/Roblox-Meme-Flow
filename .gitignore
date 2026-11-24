@@ -13,8 +13,12 @@ build/
 *.key
 *.pem
 
-# Generated assets, video/audio media, Chrome sessions, and outputs (NEVER push to GitHub)
+# Generated episodes, assets, video/audio media, Chrome sessions, tmp, and outputs (NEVER push to GitHub)
 outputs/
+tmp/
+episodes/*.yaml
+episodes/*.yml
+!episodes/viral_ep04_wifi_tetangga_fast.yaml
 assets/generated/
 assets/bgm/*.mp3
 assets/bgm/*.wav
