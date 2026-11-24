@@ -659,7 +659,35 @@
         <div class="card-header">
           <div>
             <h2 class="card-title">✨ Buat Episode Baru</h2>
-            <p class="subtext">Pilih gaya video, tulis ide (atau kosongkan biar AI pilihkan), lalu klik 1 tombol. Otomatis jadi script 8 scene siap render.</p>
+            <p class="subtext">Pilih gaya video, tulis ide (atau kosongkan), lalu klik 1 tombol. Script otomatis ditulis oleh <strong>Google Antigravity (Gemini 4 Neon High)</strong>.</p>
+          </div>
+          <span id="agyStatusPill" class="pill" style="cursor:pointer;" onclick="loadAgyAuthStatus(true)" title="Klik untuk cek ulang status login Antigravity">⏳ Cek Antigravity...</span>
+        </div>
+
+        <!-- ANTIGRAVITY 1-CLICK LOGIN CONFIRMATION CARD (shown automatically if not signed in) -->
+        <div id="agyLoginCard" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:12px;background:rgba(59,130,246,0.09);border:1px solid rgba(59,130,246,0.4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:14px;font-weight:700;">🔐 Konfirmasi Login Google Antigravity (1x Saja)</div>
+              <div id="agyLoginMsg" class="subtext" style="margin-top:2px;">Klik tombol di kanan untuk login akun Google kamu agar Gemini 4 Neon High langsung aktif.</div>
+            </div>
+            <div class="btn-row">
+              <button id="btnAgyLogin" class="primary" onclick="startAgyLogin()">🔑 Login Google Antigravity</button>
+              <button class="ghost" style="border:1px solid var(--border);font-size:12px;" onclick="useKiloFallback()">Pakai Kilo Gratis Dulu</button>
+            </div>
+          </div>
+
+          <div id="agyCodeStep" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(59,130,246,0.28);">
+            <div style="font-size:12px;color:var(--text);margin-bottom:8px;">
+              <strong>Langkah Konfirmasi:</strong>
+              1) Klik <em>Izinkan / Allow</em> di browser Google yang baru terbuka
+              (<a id="agyAuthLink" href="#" target="_blank" style="color:#60a5fa;text-decoration:underline;">buka ulang link login</a>).
+              2) Jika Google menampilkan kode (atau link redirect), tempel di bawah lalu klik <strong>Konfirmasi</strong>:
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="agyCodeInput" type="text" style="flex:1;min-width:240px;" placeholder="Tempel kode konfirmasi Google atau seluruh link redirect di sini..." />
+              <button id="btnAgyConfirm" class="success" onclick="submitAgyCode()">✅ Konfirmasi Login</button>
+            </div>
           </div>
         </div>
 
@@ -719,7 +747,7 @@
             </div>
             <div>
               <label>Nama Model AI</label>
-              <input id="genModel" type="text" value="kilo/kilo-auto/free" />
+              <input id="genModel" type="text" value="gemini-4-neon" />
             </div>
           </div>
 
@@ -789,6 +817,19 @@
       </div>
 
       <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">🔐 Koneksi Google Antigravity (Gemini 4 Neon High)</h2>
+            <p id="setAgyMsg" class="subtext">Mengecek status login Antigravity CLI...</p>
+          </div>
+          <div class="btn-row">
+            <button onclick="loadAgyAuthStatus(true)">🔄 Cek Status</button>
+            <button class="primary" onclick="switchTab('create'); startAgyLogin();">🔑 Login / Konfirmasi Antigravity</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <h2 class="card-title" style="margin-bottom:10px;">🧠 AI Skills Terpasang di Repository</h2>
         <div id="skillsList" class="btn-row"></div>
       </div>
@@ -803,6 +844,8 @@
     let cachedEpisodes = [];
     let selectedMode = "meme_roblox_id";
     let pollTimer = null;
+    let agyLoggedIn = false;
+    let agyPollTimer = null;
 
     function showToast(msg, type = "ok") {
       const el = document.getElementById("toast");
@@ -1101,6 +1144,10 @@
       if (window._aiEngines && window._aiEngines[eng]) {
         document.getElementById("genModel").value = window._aiEngines[eng].default_model;
       }
+      const card = document.getElementById("agyLoginCard");
+      if (card) {
+        card.style.display = (eng === "antigravity" && !agyLoggedIn) ? "block" : "none";
+      }
     }
 
     async function deleteCurrentEpisode() {
@@ -1275,13 +1322,129 @@
       }
     }
 
+    function renderAgyAuthState(st) {
+      agyLoggedIn = Boolean(st.logged_in);
+      const pill = document.getElementById("agyStatusPill");
+      const card = document.getElementById("agyLoginCard");
+      const msgEl = document.getElementById("agyLoginMsg");
+      const setMsg = document.getElementById("setAgyMsg");
+      const codeStep = document.getElementById("agyCodeStep");
+      const linkEl = document.getElementById("agyAuthLink");
+      const selectedEng = document.getElementById("genEngine")?.value || "antigravity";
+
+      if (setMsg) setMsg.textContent = st.message || (agyLoggedIn ? "Terhubung!" : "Belum login.");
+
+      if (agyLoggedIn) {
+        if (agyPollTimer) { clearInterval(agyPollTimer); agyPollTimer = null; }
+        pill.textContent = "✅ Antigravity Neon High Siap";
+        pill.className = "pill ok";
+        card.style.display = "none";
+        codeStep.style.display = "none";
+      } else {
+        pill.textContent = st.status === "waiting_code" ? "⏳ Menunggu Konfirmasi Google..." : "🔐 Antigravity Perlu Login 1x";
+        pill.className = "pill warn";
+        card.style.display = selectedEng === "antigravity" ? "block" : "none";
+        if (st.message) msgEl.textContent = st.message;
+        if (st.auth_url) {
+          codeStep.style.display = "block";
+          linkEl.href = st.auth_url;
+        }
+      }
+    }
+
+    async function loadAgyAuthStatus(showFeedback = false) {
+      try {
+        const st = await api("/api/auth/antigravity/status?refresh=true");
+        renderAgyAuthState(st);
+        if (showFeedback) showToast(st.logged_in ? "Antigravity Neon High siap dipakai!" : "Antigravity belum login — klik tombol Login.", st.logged_in ? "ok" : "err");
+      } catch (err) {
+        if (showFeedback) showToast("Gagal cek Antigravity: " + err.message, "err");
+      }
+    }
+
+    async function startAgyLogin() {
+      const btn = document.getElementById("btnAgyLogin");
+      if (btn) { btn.disabled = true; btn.textContent = "⏳ Membuka Login Google..."; }
+      try {
+        const st = await api("/api/auth/antigravity/login", { method: "POST" });
+        renderAgyAuthState(st);
+        if (st.logged_in) {
+          showToast("✅ Google Antigravity sudah terhubung!", "ok");
+        } else {
+          document.getElementById("agyLoginCard").style.display = "block";
+          showToast("Browser login Google dibuka! Klik Izinkan, lalu tempel kode jika diminta.");
+          if (agyPollTimer) clearInterval(agyPollTimer);
+          agyPollTimer = setInterval(async () => {
+            try {
+              const cur = await api("/api/auth/antigravity/status?refresh=false");
+              renderAgyAuthState(cur);
+              if (cur.logged_in) {
+                showToast("✅ Login Google Antigravity berhasil!", "ok");
+              } else if (cur.status === "error") {
+                clearInterval(agyPollTimer);
+                agyPollTimer = null;
+              }
+            } catch (_) {}
+          }, 2000);
+        }
+      } catch (err) {
+        showToast("Gagal mulai login: " + err.message, "err");
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "🔑 Login Google Antigravity"; }
+      }
+    }
+
+    async function submitAgyCode() {
+      const input = document.getElementById("agyCodeInput");
+      const code = (input?.value || "").trim();
+      if (!code) return showToast("Tempel kode konfirmasi dari Google dulu.", "err");
+      const btn = document.getElementById("btnAgyConfirm");
+      btn.disabled = true;
+      btn.textContent = "⏳ Memverifikasi...";
+      try {
+        const st = await api("/api/auth/antigravity/submit-code", {
+          method: "POST",
+          body: JSON.stringify({ code }),
+        });
+        input.value = "";
+        renderAgyAuthState(st);
+        showToast("✅ Login berhasil! Gemini 4 Neon High siap dipakai.", "ok");
+      } catch (err) {
+        showToast(err.message, "err");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "✅ Konfirmasi Login";
+      }
+    }
+
+    function useKiloFallback() {
+      const eng = document.getElementById("genEngine");
+      if (eng) {
+        eng.value = "kilo_free";
+        onEngineChange();
+      }
+      document.getElementById("agyLoginCard").style.display = "none";
+      showToast("Berpindah sementara ke Kilo AI Gratis. Langsung klik Buat Script!");
+    }
+
     async function generateViaAI() {
+      const engine = document.getElementById("genEngine").value || "antigravity";
+      const model = document.getElementById("genModel").value || (engine === "antigravity" ? "gemini-4-neon" : "kilo/kilo-auto/free");
+
+      if (engine === "antigravity" && !agyLoggedIn) {
+        await loadAgyAuthStatus(false);
+        if (!agyLoggedIn) {
+          document.getElementById("agyLoginCard").style.display = "block";
+          showToast("Login Google Antigravity dulu (1x konfirmasi), lalu klik lagi!", "err");
+          await startAgyLogin();
+          return;
+        }
+      }
+
       const btn = document.getElementById("btnGenerateScript");
       btn.disabled = true;
-      btn.textContent = "⏳ AI sedang membuat script (tunggu ~15-40 detik)...";
+      btn.textContent = `⏳ AI (${model}) sedang menulis cerita & 8 scene...`;
       try {
-        const engine = document.getElementById("genEngine").value || "kilo_free";
-        const model = document.getElementById("genModel").value || "kilo/kilo-auto/free";
         const res = await api("/api/generate-script", {
           method: "POST",
           body: JSON.stringify({
@@ -1296,7 +1459,7 @@
         });
         pollJob(
           res.job_id,
-          "Membuat Script Episode Baru",
+          `Membuat Script Episode Baru (${model})`,
           async (done) => {
             await loadEpisodes();
             if (done.result && done.result.saved) {
@@ -1379,6 +1542,7 @@
       startLifecycleHeartbeat();
       await loadStatus(false);
       await loadEpisodes();
+      loadAgyAuthStatus(false);
     })();
   </script>
 </body>

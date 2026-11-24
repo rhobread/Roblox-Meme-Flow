@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from roblox_meme_flow.credit_guard import (
@@ -26,6 +27,7 @@ from roblox_meme_flow.win_silent import (
 )
 
 AT_HANDLE_RE = re.compile(r"@([A-Z][A-Za-z0-9]*)")
+_GFLOW_PROFILE_LOCK = threading.Lock()
 
 
 def strip_at_handles_for_gflow(prompt: str) -> str:
@@ -187,6 +189,7 @@ def _resolve_ref_args(args: list[str]) -> list[str]:
 def _silent_gflow_env() -> dict[str, str]:
     env = dict(os.environ)
     env.setdefault("GFLOW_CLI_BROWSER_WINDOW_POSITION", "-30000,-30000")
+    env.setdefault("GFLOW_CLI_LEASE_WAIT_SECONDS", "45")
     return env
 
 
@@ -195,15 +198,20 @@ def get_live_flow_credits() -> int | None:
     gflow_bin = find_gflow_executable()
     if not gflow_bin:
         return None
-    proc = subprocess.run(
-        [gflow_bin, "credits", "user"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=_silent_gflow_env(),
-        check=False,
-        **silent_subprocess_kwargs(),
-    )
+    if not _GFLOW_PROFILE_LOCK.acquire(timeout=2.0):
+        return None
+    try:
+        proc = subprocess.run(
+            [gflow_bin, "credits", "user"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=_silent_gflow_env(),
+            check=False,
+            **silent_subprocess_kwargs(),
+        )
+    finally:
+        _GFLOW_PROFILE_LOCK.release()
     if proc.returncode != 0:
         return None
     match = re.search(r"Credits:\s*(\d+)", proc.stdout)
@@ -286,10 +294,11 @@ def write_and_optionally_run_flow(
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
         _emit(f"-> Running [{step['stage']}] {step['target']} (background)...")
-        proc = run_silent_gflow_subprocess(
-            run_args,
-            env=_silent_gflow_env(),
-        )
+        with _GFLOW_PROFILE_LOCK:
+            proc = run_silent_gflow_subprocess(
+                run_args,
+                env=_silent_gflow_env(),
+            )
         record = {
             "stage": step["stage"],
             "target": step["target"],
@@ -316,9 +325,10 @@ def write_and_optionally_run_flow(
             _emit(f"[BUDGET] Tercatat terpakai {spent} kredit hari ini (saldo: {credits_after}).")
 
     if failed_step is not None:
+        detail = (str(failed_step.get("stderr") or "") or str(failed_step.get("stdout") or "")).strip()[-400:]
         raise RuntimeError(
-            f"gflow failed at [{failed_step['stage']}] {failed_step['target']} "
-            f"(exit {failed_step['returncode']}). See {log_path}"
+            f"Google Flow gagal di tahap [{failed_step['stage']}] {failed_step['target']} "
+            f"(exit {failed_step['returncode']}). {detail}\nLog lengkap: {log_path}"
         )
 
     return manifest_path

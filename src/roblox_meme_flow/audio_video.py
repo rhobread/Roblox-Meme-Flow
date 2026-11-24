@@ -4,6 +4,7 @@ import asyncio
 import json
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from roblox_meme_flow.layout import EpisodeLayout
@@ -62,6 +63,35 @@ async def _synthesize_edge_tts(
 
     communicator = edge_tts.Communicate(text=text, voice=voice, rate=rate, pitch=pitch)
     await communicator.save(str(out_mp3))
+
+
+def _synthesize_edge_tts_with_retry(
+    text: str,
+    voice: str,
+    rate: str,
+    pitch: str,
+    out_mp3: Path,
+    max_attempts: int = 4,
+) -> None:
+    """Synthesize MP3 via edge-tts with automatic retry and atomic write so 0-byte files never crash preview."""
+    last_err: Exception | None = None
+    tmp_mp3 = out_mp3.with_suffix(".tmp.mp3")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            tmp_mp3.unlink(missing_ok=True)
+            asyncio.run(_synthesize_edge_tts(text, voice, rate, pitch, tmp_mp3))
+            if tmp_mp3.exists() and tmp_mp3.stat().st_size > 128:
+                tmp_mp3.replace(out_mp3)
+                return
+            last_err = RuntimeError("edge-tts returned empty audio stream (0 bytes)")
+        except Exception as exc:
+            last_err = exc
+        tmp_mp3.unlink(missing_ok=True)
+        if attempt < max_attempts:
+            time.sleep(0.8 * attempt)
+    raise RuntimeError(
+        f"Gagal membuat suara narator setelah {max_attempts} percobaan (koneksi Microsoft Edge TTS terputus): {last_err}"
+    )
 
 
 def _fit_scene_audio(
@@ -157,7 +187,11 @@ def _fit_scene_audio(
     return round(final_dur, 3)
 
 
-def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Path]:
+def generate_voiceover_and_srt(
+    ep: EpisodeSpec,
+    out_dir: Path,
+    log_callback=None,
+) -> tuple[Path, Path]:
     layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
     layout.ensure_dirs()
 
@@ -169,25 +203,24 @@ def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Pa
     if not ffmpeg:
         srt_path.write_text(build_srt(ep), encoding="utf-8")
         full_narration = " ".join(scene.narration_id.strip() for scene in ep.scenes)
-        asyncio.run(
-            _synthesize_edge_tts(full_narration, ep.tts_voice, ep.tts_rate, ep.tts_pitch, mp3_path)
-        )
+        _synthesize_edge_tts_with_retry(full_narration, ep.tts_voice, ep.tts_rate, ep.tts_pitch, mp3_path)
         return mp3_path, srt_path
 
     fitted_wavs: list[Path] = []
     scene_durations: list[float] = []
+    total_scenes = len(ep.scenes)
 
-    for scene in ep.scenes:
+    for idx, scene in enumerate(ep.scenes, start=1):
+        if log_callback:
+            log_callback(f"      Suara narator scene {idx}/{total_scenes}...")
         raw_scene_mp3 = vo_dir / f"scene_{scene.scene_number:02d}_raw.mp3"
         fitted_wav = vo_dir / f"scene_{scene.scene_number:02d}_fit.wav"
-        asyncio.run(
-            _synthesize_edge_tts(
-                scene.narration_id.strip(),
-                ep.tts_voice,
-                ep.tts_rate,
-                ep.tts_pitch,
-                raw_scene_mp3,
-            )
+        _synthesize_edge_tts_with_retry(
+            scene.narration_id.strip(),
+            ep.tts_voice,
+            ep.tts_rate,
+            ep.tts_pitch,
+            raw_scene_mp3,
         )
         actual_dur = _fit_scene_audio(
             ffmpeg,
@@ -200,6 +233,8 @@ def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Pa
         )
         fitted_wavs.append(fitted_wav)
         scene_durations.append(actual_dur)
+        if idx < total_scenes:
+            time.sleep(0.25)
 
     # Save exact tight-cut scene timings so assemble_video & SRT stay 100% synced
     (vo_dir / "timings.json").write_text(

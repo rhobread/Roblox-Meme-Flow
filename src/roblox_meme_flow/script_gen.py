@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 import re
 import shutil
 import subprocess
+import threading
+import time
+import urllib.parse
+import webbrowser
 from pathlib import Path
 from typing import Literal
 
@@ -41,17 +46,17 @@ BEAT_ALIASES: dict[str, str] = {
 VALID_DURATIONS = (3, 4, 5, 6, 8, 10)
 
 AI_ENGINES: dict[str, dict[str, str]] = {
+    "antigravity": {
+        "label": "Google Antigravity (Gemini 4 Neon High - Rekomendasi Utama)",
+        "default_model": "gemini-4-neon",
+    },
     "kilo_free": {
-        "label": "Otomatis - Kilo AI Gratis (Direkomendasikan, langsung jalan)",
+        "label": "Kilo AI Gratis (Cadangan Tanpa Login)",
         "default_model": "kilo/kilo-auto/free",
     },
     "kilo_custom": {
-        "label": "Kilo AI - Model Gratis Lain / Custom",
+        "label": "Kilo AI - Model Lain (Custom)",
         "default_model": "kilo/nvidia/nemotron-3-ultra-550b-a55b:free",
-    },
-    "antigravity": {
-        "label": "Google Antigravity CLI (Perlu login 'agy' di terminal)",
-        "default_model": "gemini-4-neon",
     },
 }
 
@@ -527,6 +532,252 @@ def generate_script_via_kilo(
         return validate_and_save_yaml(repaired_output, project_root / "episodes", auto_sanitize=True)
 
 
+def _clean_agy_env() -> dict[str, str]:
+    """Use the user's normal Antigravity profile (avoid inheriting an isolated parent GEMINI_HOME)."""
+    env = dict(os.environ)
+    env.pop("GEMINI_HOME", None)
+    return env
+
+
+def extract_oauth_code(raw_input: str) -> str:
+    """Accept either a raw Google OAuth code or a full callback URL containing ?code=..."""
+    cleaned = raw_input.strip()
+    if "code=" in cleaned:
+        parsed = urllib.parse.urlparse(cleaned)
+        qs = urllib.parse.parse_qs(parsed.query)
+        if qs.get("code"):
+            return qs["code"][0].strip()
+        m = re.search(r"[?&]code=([^&\s]+)", cleaned)
+        if m:
+            return urllib.parse.unquote(m.group(1)).strip()
+    return cleaned
+
+
+def check_antigravity_auth(timeout_s: int = 12) -> dict[str, object]:
+    """Check whether `agy` CLI is installed and signed into Google Antigravity."""
+    agy_bin = shutil.which("agy")
+    if not agy_bin:
+        return {
+            "installed": False,
+            "logged_in": False,
+            "models": [],
+            "message": "Antigravity CLI (`agy`) belum terpasang di komputer ini.",
+        }
+    try:
+        proc = subprocess.run(
+            [agy_bin, "models"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_s,
+            env=_clean_agy_env(),
+            check=False,
+            **silent_subprocess_kwargs(),
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "installed": True,
+            "logged_in": False,
+            "models": [],
+            "message": "Cek status Antigravity timeout. Coba klik tombol Login Google Antigravity.",
+        }
+
+    out = strip_ansi((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()
+    low = out.lower()
+    if proc.returncode == 0 and "sign in" not in low and "authentication required" not in low:
+        models = [
+            line.strip().split()[0]
+            for line in out.splitlines()
+            if line.strip() and not line.lower().startswith("fetching") and "gemini" in line.lower()
+        ]
+        return {
+            "installed": True,
+            "logged_in": True,
+            "models": models,
+            "message": "Google Antigravity (Gemini 4 Neon High) sudah terhubung dan siap dipakai!",
+        }
+    return {
+        "installed": True,
+        "logged_in": False,
+        "models": [],
+        "message": "Google Antigravity belum login. Klik 'Login Google Antigravity' untuk konfirmasi 1x.",
+    }
+
+
+class AntigravityAuthManager:
+    """Manages official `agy` OAuth login flow directly from the Studio UI."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._proc: subprocess.Popen[str] | None = None
+        self._status: Literal["idle", "waiting_code", "done", "error"] = "idle"
+        self._auth_url: str | None = None
+        self._message: str = ""
+        self._logs: list[str] = []
+
+    def _cleanup_proc_locked(self) -> None:
+        if self._proc is not None:
+            try:
+                if self._proc.poll() is None:
+                    self._proc.terminate()
+            except Exception:
+                pass
+            self._proc = None
+
+    def get_state(self, *, refresh_auth: bool = True) -> dict[str, object]:
+        with self._lock:
+            status = self._status
+            auth_url = self._auth_url
+            message = self._message
+            logs = list(self._logs[-10:])
+        auth = check_antigravity_auth() if (refresh_auth and status != "waiting_code") else None
+        logged_in = bool(auth["logged_in"]) if auth else (status == "done")
+        if logged_in and status != "done":
+            with self._lock:
+                self._status = "done"
+                self._auth_url = None
+                self._message = str(auth["message"]) if auth else "Terhubung!"
+            status = "done"
+            auth_url = None
+            message = self._message
+        return {
+            "installed": bool(auth["installed"]) if auth else bool(shutil.which("agy")),
+            "logged_in": logged_in,
+            "status": status,
+            "auth_url": auth_url,
+            "message": message or (str(auth["message"]) if auth else ""),
+            "logs": logs,
+        }
+
+    def start_login(self, open_browser: bool = True) -> dict[str, object]:
+        agy_bin = shutil.which("agy")
+        if not agy_bin:
+            raise RuntimeError("Antigravity CLI (`agy`) belum terpasang di komputer ini.")
+
+        # Already signed in?
+        auth = check_antigravity_auth()
+        if auth["logged_in"]:
+            with self._lock:
+                self._cleanup_proc_locked()
+                self._status = "done"
+                self._auth_url = None
+                self._message = str(auth["message"])
+            return self.get_state(refresh_auth=False)
+
+        with self._lock:
+            self._cleanup_proc_locked()
+            self._status = "waiting_code"
+            self._auth_url = None
+            self._logs = []
+            self._message = "Menyiapkan halaman konfirmasi login Google..."
+
+            proc = subprocess.Popen(
+                [agy_bin, "--model", "gemini-4-neon", "--output-format", "text", "--print", "OK"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_clean_agy_env(),
+                **silent_subprocess_kwargs(),
+            )
+            self._proc = proc
+
+        url_found = threading.Event()
+
+        def _reader() -> None:
+            assert proc.stdout is not None
+            try:
+                for raw_line in proc.stdout:
+                    line = strip_ansi(raw_line).strip()
+                    if not line:
+                        continue
+                    with self._lock:
+                        self._logs.append(line)
+                        m = re.search(r"(https://accounts\.google\.com/\S+)", line)
+                        if m and not self._auth_url:
+                            self._auth_url = m.group(1)
+                            self._message = (
+                                "Halaman login Google sudah dibuka! Klik Izinkan/Allow, "
+                                "lalu tempel kode konfirmasi dari Google di bawah jika diminta."
+                            )
+                            url_found.set()
+                rc = proc.wait()
+                with self._lock:
+                    if self._proc is proc:
+                        self._proc = None
+                    if rc == 0:
+                        self._status = "done"
+                        self._auth_url = None
+                        self._message = "Berhasil login Google Antigravity (Gemini 4 Neon High)!"
+                    elif self._status == "waiting_code":
+                        self._status = "error"
+                        self._message = "Sesi login berakhir/timeout (60 detik). Klik Login lagi untuk mengulang."
+            except Exception as exc:
+                with self._lock:
+                    if self._status == "waiting_code":
+                        self._status = "error"
+                        self._message = f"Gagal membaca status login: {exc}"
+            finally:
+                url_found.set()
+
+        threading.Thread(target=_reader, daemon=True).start()
+        url_found.wait(timeout=12.0)
+
+        with self._lock:
+            url = self._auth_url
+        if url and open_browser:
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+
+        return self.get_state(refresh_auth=False)
+
+    def submit_code(self, raw_code: str) -> dict[str, object]:
+        code = extract_oauth_code(raw_code)
+        if not code:
+            raise ValueError("Kode konfirmasi masih kosong.")
+
+        with self._lock:
+            proc = self._proc
+            if proc is None or proc.poll() is not None or proc.stdin is None:
+                raise RuntimeError(
+                    "Sesi login sudah berakhir atau timeout (60 detik). Klik 'Login Google Antigravity' lagi."
+                )
+            try:
+                proc.stdin.write(code + "\n")
+                proc.stdin.flush()
+            except Exception as exc:
+                raise RuntimeError(f"Gagal mengirim kode ke Antigravity CLI: {exc}") from exc
+
+        # Wait up to 20s for agy to complete login & exit 0
+        deadline = time.time() + 20.0
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                break
+            time.sleep(0.35)
+
+        auth = check_antigravity_auth()
+        if auth["logged_in"]:
+            with self._lock:
+                self._cleanup_proc_locked()
+                self._status = "done"
+                self._auth_url = None
+                self._message = "Login berhasil! Google Antigravity (Gemini 4 Neon High) sekarang siap dipakai."
+            return self.get_state(refresh_auth=False)
+
+        with self._lock:
+            tail = " | ".join(self._logs[-3:])
+        raise RuntimeError(
+            f"Konfirmasi kode belum berhasil ({tail or 'kode mungkin sudah kedaluwarsa'}). "
+            "Coba klik 'Login Google Antigravity' lagi dan gunakan kode terbaru."
+        )
+
+
 def build_antigravity_cmd(
     agy_bin: str,
     prompt: str,
@@ -548,6 +799,40 @@ def build_antigravity_cmd(
     ]
 
 
+def _invoke_antigravity_once(
+    agy_bin: str,
+    project_root: Path,
+    prompt: str,
+    model: str,
+    effort: str,
+    timeout_s: int,
+) -> str:
+    cmd = build_antigravity_cmd(agy_bin, prompt, model=model, effort=effort)
+    proc = subprocess.run(
+        cmd,
+        cwd=str(project_root),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout_s,
+        env=_clean_agy_env(),
+        check=False,
+        **silent_subprocess_kwargs(),
+    )
+    if proc.returncode != 0:
+        err = strip_ansi(proc.stderr or proc.stdout).strip()[-1000:]
+        low = err.lower()
+        if "authentication" in low or "sign in" in low or "oauth" in low:
+            raise RuntimeError(
+                "ANTIGRAVITY_LOGIN_REQUIRED: Google Antigravity belum login. "
+                "Klik tombol 'Login Google Antigravity Sekarang' di atas untuk konfirmasi login 1x."
+            )
+        raise RuntimeError(f"Antigravity CLI gagal (exit {proc.returncode}):\n{err}")
+    return proc.stdout
+
+
 def generate_script_via_antigravity(
     project_root: Path,
     prompt: str,
@@ -559,31 +844,23 @@ def generate_script_via_antigravity(
     agy_bin = shutil.which("agy")
     if not agy_bin:
         raise RuntimeError(
-            "Antigravity CLI (`agy`) tidak ditemukan. Gunakan pilihan default 'Otomatis - Kilo AI Gratis'."
+            "Antigravity CLI (`agy`) tidak ditemukan. Gunakan pilihan 'Kilo AI Gratis' di Pengaturan Lanjutan."
         )
 
-    cmd = build_antigravity_cmd(agy_bin, prompt, model=model, effort=effort)
-    proc = subprocess.run(
-        cmd,
-        cwd=str(project_root),
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout_s,
-        check=False,
-        **silent_subprocess_kwargs(),
-    )
-    if proc.returncode != 0:
-        err = strip_ansi(proc.stderr or proc.stdout).strip()[-1000:]
-        low = err.lower()
-        if "authentication" in low or "sign in" in low or "oauth" in low:
-            raise RuntimeError(
-                "Antigravity CLI (`agy`) belum login di terminal Windows. "
-                "Gunakan pilihan default 'Otomatis - Kilo AI Gratis' (langsung jalan tanpa login), "
-                "atau buka PowerShell dan jalankan `agy` sekali untuk login."
-            )
-        raise RuntimeError(f"Antigravity CLI gagal (exit {proc.returncode}):\n{err}")
-
-    return validate_and_save_yaml(proc.stdout, project_root / "episodes", auto_sanitize=True)
+    effective_model = model.strip() or "gemini-4-neon"
+    raw_output = _invoke_antigravity_once(agy_bin, project_root, prompt, effective_model, effort, timeout_s)
+    try:
+        return validate_and_save_yaml(raw_output, project_root / "episodes", auto_sanitize=True)
+    except Exception as first_err:
+        if log_callback:
+            log_callback("      Format YAML perlu dirapikan otomatis, mencoba perbaikan cepat (1/1)...")
+        repair_prompt = (
+            "Perbaiki YAML di bawah ini agar 100% valid mengikuti schema EpisodeSpec dan kembalikan "
+            "HANYA 1 blok ```yaml ... ``` tanpa teks tambahan.\n\n"
+            f"Error validasi:\n{first_err}\n\n"
+            f"YAML sebelumnya:\n{strip_ansi(raw_output)[-4500:]}"
+        )
+        repaired_output = _invoke_antigravity_once(
+            agy_bin, project_root, repair_prompt, effective_model, effort, timeout_s
+        )
+        return validate_and_save_yaml(repaired_output, project_root / "episodes", auto_sanitize=True)

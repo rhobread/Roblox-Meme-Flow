@@ -22,6 +22,7 @@ from roblox_meme_flow.researcher import build_viral_research_brief
 from roblox_meme_flow.script_gen import (
     build_antigravity_cmd,
     build_t3_generation_prompt,
+    extract_oauth_code,
     sanitize_episode_dict,
     validate_and_save_yaml,
 )
@@ -452,6 +453,37 @@ scenes:
     assert "@BudiKos" in loaded.scenes[0].visual_prompt
     assert "@WarkopMalam" in loaded.scenes[0].visual_prompt
     assert "@GhostTypo" not in loaded.scenes[1].visual_prompt
+
+    # OAuth code extraction accepts both raw code and full Google redirect URL
+    assert extract_oauth_code("4/0AeanS0_abc123") == "4/0AeanS0_abc123"
+    assert (
+        extract_oauth_code("https://antigravity.google/oauth-callback?state=xyz&code=4%2F0AeanS0_abc123&scope=email")
+        == "4/0AeanS0_abc123"
+    )
+
+
+def test_edge_tts_retry_recovers_from_transient_zero_byte_failure(monkeypatch, tmp_path: Path) -> None:
+    from roblox_meme_flow import audio_video
+
+    attempts = {"n": 0}
+
+    async def fake_synth(text: str, voice: str, rate: str, pitch: str, out_mp3: Path) -> None:
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            out_mp3.write_bytes(b"")  # simulate 0-byte drop
+            return
+        if attempts["n"] == 2:
+            raise RuntimeError("transient websocket disconnect")
+        out_mp3.write_bytes(b"ID3" + b"\x00" * 512)
+
+    monkeypatch.setattr(audio_video, "_synthesize_edge_tts", fake_synth)
+    monkeypatch.setattr(audio_video.time, "sleep", lambda _s: None)
+
+    out = tmp_path / "scene_03_raw.mp3"
+    audio_video._synthesize_edge_tts_with_retry("halo", "id-ID-ArdiNeural", "+18%", "+28Hz", out)
+    assert attempts["n"] == 3
+    assert out.exists() and out.stat().st_size > 128
+
 
 
 

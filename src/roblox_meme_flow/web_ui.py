@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +31,7 @@ from roblox_meme_flow.researcher import build_viral_research_brief
 from roblox_meme_flow.script_gen import (
     AI_ENGINES,
     VOICE_PRESETS,
+    AntigravityAuthManager,
     build_t3_generation_prompt,
     generate_script_via_antigravity,
     generate_script_via_kilo,
@@ -69,8 +71,12 @@ class ResearchPayload(BaseModel):
 
 
 class GenerateScriptPayload(ResearchPayload):
-    engine: Literal["kilo_free", "kilo_custom", "antigravity"] = "kilo_free"
-    model: str = "kilo/kilo-auto/free"
+    engine: Literal["antigravity", "kilo_free", "kilo_custom"] = "antigravity"
+    model: str = "gemini-4-neon"
+
+
+class AntigravityCodePayload(BaseModel):
+    code: str
 
 
 class SaveEpisodePayload(BaseModel):
@@ -126,6 +132,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     app = FastAPI(title="Roblox-Meme-Flow Studio", version="0.2.0")
     jobs: dict[str, JobState] = {}
     jobs_lock = threading.Lock()
+    agy_auth = AntigravityAuthManager()
     lifecycle_lock = threading.Lock()
     now_mono = time.monotonic()
     lifecycle_state: dict[str, float | None] = {
@@ -175,6 +182,14 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 state.error = str(exc)
                 state.append(f"[ERROR] {exc}")
                 state.status = "error"
+                try:
+                    outputs_dir.mkdir(parents=True, exist_ok=True)
+                    (outputs_dir / "last_job_error.log").write_text(
+                        f"[{kind}] {exc}\n\n{traceback.format_exc()}",
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    pass
 
         threading.Thread(target=_runner, daemon=True).start()
         return job_id
@@ -197,6 +212,24 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     def api_ui_closing() -> dict[str, object]:
         _mark_ui_closing()
         return {"ok": True}
+
+    @app.get("/api/auth/antigravity/status")
+    def api_agy_status(refresh: bool = True) -> dict[str, object]:
+        return agy_auth.get_state(refresh_auth=refresh)
+
+    @app.post("/api/auth/antigravity/login")
+    def api_agy_login() -> dict[str, object]:
+        try:
+            return agy_auth.start_login(open_browser=True)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/auth/antigravity/submit-code")
+    def api_agy_submit_code(payload: AntigravityCodePayload) -> dict[str, object]:
+        try:
+            return agy_auth.submit_code(payload.code)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/status")
     def api_status(refresh_credits: bool = False) -> dict[str, object]:
@@ -503,8 +536,8 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 raise RuntimeError("Validasi gagal: " + "; ".join(i.message for i in issues))
             job.append("[1/3] Export plan & subtitle SRT ke struktur folder rapi...")
             export_plan(ep, outputs_dir, source_yaml=ep_path)
-            job.append("[2/3] Generate Voiceover Bahasa Indonesia...")
-            generate_voiceover_and_srt(ep, outputs_dir)
+            job.append("[2/3] Generate Voiceover Bahasa Indonesia (auto-retry aktif)...")
+            generate_voiceover_and_srt(ep, outputs_dir, log_callback=job.append)
             job.append("[3/3] Generate gambar referensi & storyboard di Google Flow (0 kredit)...")
             write_and_optionally_run_flow(
                 ep=ep,
@@ -553,7 +586,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             )
             if not (layout.audio_dir / "voiceover.mp3").exists():
                 job.append("[2/3] Generate Voiceover Bahasa Indonesia...")
-                generate_voiceover_and_srt(ep, outputs_dir)
+                generate_voiceover_and_srt(ep, outputs_dir, log_callback=job.append)
             clips = sorted(layout.clips_dir.glob("scene_*.mp4"))
             if not clips:
                 raise RuntimeError(f"Tidak ada klip scene_*.mp4 di {layout.clips_dir}")
@@ -583,7 +616,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             layout = EpisodeLayout.for_episode(outputs_dir, ep.episode_id)
             clips = sorted(layout.clips_dir.glob("scene_*.mp4"))
             job.append("[1/2] Membuat ulang Voiceover & Subtitle (0 kredit)...")
-            generate_voiceover_and_srt(ep, outputs_dir)
+            generate_voiceover_and_srt(ep, outputs_dir, log_callback=job.append)
             if not clips:
                 job.append(
                     "[SELESAI - 0 KREDIT] Suara preview diperbarui! "
