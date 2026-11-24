@@ -13,14 +13,24 @@ build/
 *.key
 *.pem
 
-# Generated assets, Chrome sessions, and outputs
+# Generated assets, video/audio media, Chrome sessions, and outputs (NEVER push to GitHub)
 outputs/
 assets/generated/
+assets/bgm/*.mp3
+assets/bgm/*.wav
+assets/bgm/*.webm
+assets/bgm/*.m4a
+assets/bgm/*.ogg
 chrome-profile/
 *.mp4
 *.mov
+*.mkv
+*.avi
+*.webm
 *.mp3
 *.wav
+*.m4a
+*.ogg
 *.png
 *.jpg
 *.jpeg

@@ -10,7 +10,7 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("help", "ui", "install-app", "list", "doctor", "credits", "login", "research", "preview", "render", "revoice", "open")]
+    [ValidateSet("help", "ui", "install-app", "update", "list", "doctor", "credits", "login", "research", "preview", "render", "revoice", "open")]
     [string]$Action = "help",
 
     [Parameter(Position = 1)]
@@ -40,6 +40,7 @@ switch ($Action) {
         Write-Host "=== Roblox-Meme-Flow (Cara Mudah) ===" -ForegroundColor Cyan
         Write-Host "  .\run.ps1 ui                         -> Buka Web UI Studio di browser (http://127.0.0.1:8787)"
         Write-Host "  .\run.ps1 install-app                -> Install shortcut Desktop & Start Menu App"
+        Write-Host "  .\run.ps1 update                     -> Update app (git pull + upgrade deps + refresh shortcut)"
         Write-Host "  .\run.ps1 list                       -> Lihat semua file episode"
         Write-Host "  .\run.ps1 credits                    -> Cek saldo kredit Google Flow"
         Write-Host "  .\run.ps1 research                   -> Riset tren viral Indonesia + buat prompt T3"
@@ -57,6 +58,9 @@ switch ($Action) {
     }
     "install-app" {
         & (Join-Path $PSScriptRoot "install_desktop_app.ps1")
+    }
+    "update" {
+        & (Join-Path $PSScriptRoot "update_app.ps1")
     }
     "research" {
         & $Py -m roblox_meme_flow.cli research

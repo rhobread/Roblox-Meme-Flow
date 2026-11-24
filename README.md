@@ -16,6 +16,45 @@ Daily short-form Indonesian meme video pipeline inspired by the **"In This World
 
 ---
 
+## Install & Update Guide (Windows Desktop App)
+
+### 1. First-Time Install (PC Baru / Fresh Clone)
+```powershell
+cd "C:\Personal Projects\Roblox-Meme-Flow"
+
+# 1. Buat virtual environment & install semua package
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+
+# 2. Install browser Playwright Chromium (jika belum punya Google Chrome)
+.\.venv\Scripts\playwright.exe install chromium
+
+# 3. Download default BGM ("In this town roblox background music") secara lokal (tidak masuk Git)
+$ffmpeg = .\.venv\Scripts\python.exe -c "from roblox_meme_flow.audio_video import find_ffmpeg; print(find_ffmpeg())"
+.\.venv\Scripts\yt-dlp.exe -x --audio-format mp3 --audio-quality 0 --ffmpeg-location $ffmpeg -o "assets\bgm\in_this_town_bgm.%(ext)s" "https://www.youtube.com/watch?v=hmrcPwb7rxE"
+
+# 4. Login sekali ke Google Flow
+.\.venv\Scripts\gflow.exe auth login --browser internal
+
+# 5. Install shortcut Desktop & Start Menu App
+.\run.ps1 install-app
+```
+Setelah selesai, buka aplikasi kapan saja dari ikon **`Roblox-Meme-Flow Studio`** di **Desktop** atau **Start Menu** (bisa di-pin ke Taskbar). Backend lokal otomatis menyala saat app dibuka dan otomatis mati saat jendela app ditutup.
+
+### 2. Cara Update Aplikasi
+Karena shortcut Desktop menjalankan kode editable langsung dari `.venv` di folder project:
+- **Update kode lokal / edit sendiri:** cukup tutup jendela app lalu buka lagi — perubahan langsung aktif otomatis tanpa perlu build ulang.
+- **Update dari GitHub + upgrade `gflow-cli` / dependency + refresh shortcut:** cukup jalankan 1 perintah:
+  ```powershell
+  cd "C:\Personal Projects\Roblox-Meme-Flow"
+  .\run.ps1 update
+  ```
+  *(Perintah ini menjalankan `update_app.ps1`: `git pull --ff-only` → upgrade package Python termasuk `gflow-cli` → refresh shortcut Desktop/Start Menu → verifikasi `pytest`.)*
+
+> **Kebijakan Git / GitHub:** Semua aset video (`*.mp4`, `*.mov`, `*.webm`), audio/BGM (`*.mp3`, `*.wav`, `assets/bgm/*.mp3`), gambar hasil generate (`*.jpg`, `*.png`), dan seluruh folder `outputs/` sudah di-ignore di `.gitignore` sehingga **tidak akan pernah ikut ter-upload ke GitHub**.
+
+---
+
 ## Cara Paling Mudah (Web UI Studio & `run.ps1`)
 
 Buka PowerShell di `C:\Personal Projects\Roblox-Meme-Flow` (atau klik tombol **Studio Web UI** di toolbar T3 Code):
