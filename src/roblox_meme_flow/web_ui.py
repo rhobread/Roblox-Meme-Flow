@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import shutil
 import subprocess
 import threading
@@ -189,6 +190,13 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 detail=f"Masih ada proses '{cur.kind}' yang sedang berjalan. Tunggu sampai selesai atau klik Batalkan dulu.",
             )
 
+    def _prune_old_jobs() -> None:
+        with jobs_lock:
+            finished_ids = [jid for jid, st in jobs.items() if st.status != "running"]
+            if len(finished_ids) > 20:
+                for old_id in finished_ids[:-20]:
+                    jobs.pop(old_id, None)
+
     def _start_job(kind: str, fn) -> str:
         _ensure_no_conflict_flow_job(kind)
         job_id = uuid.uuid4().hex[:10]
@@ -213,6 +221,9 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                     )
                 except Exception:
                     pass
+            finally:
+                _prune_old_jobs()
+                gc.collect()
 
         threading.Thread(target=_runner, daemon=True).start()
         return job_id

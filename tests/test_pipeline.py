@@ -8,7 +8,7 @@ from roblox_meme_flow.credit_guard import (
     estimate_episode_credits,
     record_render_spend,
 )
-from roblox_meme_flow.desktop_launcher import should_auto_shutdown
+from roblox_meme_flow.desktop_launcher import is_studio_profile_cmdline, should_auto_shutdown
 from roblox_meme_flow.flow_runner import build_gflow_manifest
 from roblox_meme_flow.models import EpisodeSpec, load_episode
 from roblox_meme_flow.prompt_builder import (
@@ -518,6 +518,16 @@ def test_veo_lite_r2v_omits_duration_and_caps_storyboard_refs(tmp_path: Path) ->
     big_manifest = build_gflow_manifest(big_ep, tmp_path / big_ep.episode_id, spend=False)
     sb = [c for c in big_manifest["commands"] if c["stage"] == "storyboard"][0]  # type: ignore[index]
     assert sb["args"].count("--ref") <= 4
+
+
+def test_studio_profile_browser_cleanup_matcher_never_matches_personal_browser(tmp_path: Path) -> None:
+    prof = tmp_path / "outputs" / ".studio_app_profile"
+    prof.mkdir(parents=True)
+    studio_cmd = f'"C:\\Program Files\\BraveSoftware\\brave.exe" --app=http://127.0.0.1:8787 --user-data-dir={prof}'
+    personal_cmd = '"C:\\Program Files\\BraveSoftware\\brave.exe" --profile-directory=Default'
+    assert is_studio_profile_cmdline(studio_cmd, prof) is True
+    assert is_studio_profile_cmdline(personal_cmd, prof) is False
+
 
 
 

@@ -272,6 +272,12 @@ def generate_voiceover_and_srt(
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed concatenating voiceover: {proc.stderr[-1000:]}")
 
+    # Clean up intermediate per-scene WAV/MP3 temp files (timings.json is preserved for fast_cut_sync)
+    for tmp_file in vo_dir.glob("scene_*.*"):
+        if tmp_file.suffix.lower() in {".wav", ".mp3"}:
+            tmp_file.unlink(missing_ok=True)
+    concat_txt.unlink(missing_ok=True)
+
     return mp3_path, srt_path
 
 
@@ -490,4 +496,10 @@ def assemble_video(
     )
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg assemble failed ({proc.returncode}): {proc.stderr[-1500:]}")
+
+    # Clean up intermediate normalized clips now that final_9x16.mp4 is built
+    for norm_file in normalized_clips:
+        norm_file.unlink(missing_ok=True)
+    concat_list.unlink(missing_ok=True)
+
     return output_mp4

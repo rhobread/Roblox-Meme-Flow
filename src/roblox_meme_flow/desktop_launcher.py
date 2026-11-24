@@ -89,6 +89,41 @@ def should_auto_shutdown(
     return False
 
 
+def is_studio_profile_cmdline(cmdline: str, profile_dir: Path) -> bool:
+    """Return True ONLY for browser processes launched with Studio's isolated profile dir."""
+    if not cmdline:
+        return False
+    norm_cmd = cmdline.replace("/", "\\").lower()
+    norm_prof = str(profile_dir.resolve()).replace("/", "\\").lower()
+    return "--user-data-dir=" in norm_cmd and norm_prof in norm_cmd
+
+
+def _terminate_studio_profile_browsers(profile_dir: Path) -> None:
+    """Cleanly terminate any detached Studio-only browser helper processes (never touches personal browsers)."""
+    if sys.platform != "win32":
+        return
+    try:
+        from roblox_meme_flow.win_silent import silent_subprocess_kwargs
+
+        prof_norm = str(profile_dir.resolve()).replace("'", "''")
+        ps_cmd = (
+            f"$p = '{prof_norm}'.ToLower(); "
+            "Get-CimInstance Win32_Process | Where-Object { "
+            "$_.CommandLine -and $_.CommandLine.ToLower().Contains('--user-data-dir=') "
+            "-and $_.CommandLine.ToLower().Contains($p) "
+            "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            timeout=5,
+            check=False,
+            **silent_subprocess_kwargs(),
+        )
+    except Exception:
+        pass
+
+
 def _terminate_own_descendants() -> None:
     """Cleanly terminate any leftover child processes spawned by this Studio process only.
 
@@ -249,6 +284,7 @@ def main() -> int:
                 server.should_exit = True
                 time.sleep(0.4)
             _terminate_own_descendants()
+            _terminate_studio_profile_browsers(profile_dir)
             try:
                 sys.stdout.flush()
                 sys.stderr.flush()
