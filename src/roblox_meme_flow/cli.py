@@ -87,12 +87,38 @@ def cmd_run_flow(args: argparse.Namespace) -> int:
             spend=bool(args.spend),
             execute=bool(args.execute),
             stages=stage_map[args.stage],
+            override_limit=bool(args.override_limit),
         )
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     mode = "LIVE SPEND" if args.spend else "DRY-RUN (--max-credits 0)"
     print(f"[{mode}] Manifest written to: {manifest_path}")
+    return 0
+
+
+def cmd_research(args: argparse.Namespace) -> int:
+    from roblox_meme_flow.script_gen import build_t3_generation_prompt
+
+    prompt, brief = build_t3_generation_prompt(
+        project_root=Path.cwd(),
+        content_mode=args.mode,
+        budget_preset=args.budget,
+        topic_hint=args.topic or "",
+    )
+    print(brief.to_prompt_block())
+    print("\n" + "=" * 60 + "\n")
+    print(prompt)
+    return 0
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from roblox_meme_flow.web_ui import create_app
+
+    app = create_app(Path.cwd())
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
 
 
@@ -160,7 +186,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Actually invoke local gflow CLI instead of manifest-only.",
     )
+    p_flow.add_argument(
+        "--override-limit",
+        action="store_true",
+        help="Override the daily 50-credit / 1-video limit.",
+    )
     p_flow.set_defaults(func=cmd_run_flow)
+
+    p_res = sub.add_parser("research", help="Run live viral trend research and print T3 script prompt.")
+    p_res.add_argument("--mode", choices=["meme_roblox_id", "kids_animation_id"], default="meme_roblox_id")
+    p_res.add_argument("--budget", default="hemat_50")
+    p_res.add_argument("--topic", default="")
+    p_res.set_defaults(func=cmd_research)
+
+    p_ui = sub.add_parser("ui", help="Launch the local Roblox-Meme-Flow Studio Web UI.")
+    p_ui.add_argument("--host", default="127.0.0.1")
+    p_ui.add_argument("--port", type=int, default=8787)
+    p_ui.set_defaults(func=cmd_ui)
 
     p_vo = sub.add_parser("voiceover", help="Synthesize Indonesian voiceover MP3 and SRT captions.")
     p_vo.add_argument("episode", help="Path to episode YAML file.")

@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+from roblox_meme_flow.credit_guard import (
+    check_render_budget,
+    estimate_episode_credits,
+    record_render_spend,
+)
 from roblox_meme_flow.layout import EpisodeLayout
 from roblox_meme_flow.models import EpisodeSpec
 from roblox_meme_flow.prompt_builder import (
@@ -171,17 +176,67 @@ def _resolve_ref_args(args: list[str]) -> list[str]:
     return resolved
 
 
+def get_live_flow_credits() -> int | None:
+    """Read live Google Flow credit balance via `gflow credits user` (0 credits spent)."""
+    gflow_bin = find_gflow_executable()
+    if not gflow_bin:
+        return None
+    proc = subprocess.run(
+        [gflow_bin, "credits", "user"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return None
+    match = re.search(r"Credits:\s*(\d+)", proc.stdout)
+    if match:
+        return int(match.group(1))
+    return None
+
+
 def write_and_optionally_run_flow(
     ep: EpisodeSpec,
     out_dir: Path,
     spend: bool = False,
     execute: bool = False,
     stages: set[str] | None = None,
+    override_limit: bool = False,
+    log_callback=None,
 ) -> Path:
+    def _emit(msg: str) -> None:
+        print(msg, flush=True)
+        if log_callback:
+            log_callback(msg)
+
     layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
     layout.ensure_dirs()
+    ledger_path = out_dir / "credit_ledger.json"
 
-    manifest = build_gflow_manifest(ep, layout.root, spend=spend)
+    will_run_video = execute and spend and (stages is None or "video_scene" in stages)
+    credits_before: int | None = None
+    per_clip_cap: int | None = None
+
+    if will_run_video:
+        credits_before = get_live_flow_credits()
+        budget = check_render_budget(
+            ep=ep,
+            ledger_path=ledger_path,
+            live_balance=credits_before,
+            override_limit=override_limit,
+        )
+        per_clip_cap = budget.per_clip_max_credits
+        _emit(f"[BUDGET] {budget.reason}")
+        if not budget.allowed:
+            raise RuntimeError(budget.reason)
+
+    manifest = build_gflow_manifest(
+        ep,
+        layout.root,
+        spend=spend,
+        max_credits_per_clip=per_clip_cap,
+    )
     manifest_path = layout.logs_dir / "gflow_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -201,7 +256,7 @@ def write_and_optionally_run_flow(
             continue
         existing = _resolve_existing_media(Path(str(step["output_hint"])))
         if existing is not None and step["stage"] == "reference_image":
-            print(f"-> Skipping existing [{step['stage']}] {step['target']} ({existing.name})", flush=True)
+            _emit(f"-> Skipping existing [{step['stage']}] {step['target']} ({existing.name})")
             results.append(
                 {
                     "stage": step["stage"],
@@ -214,7 +269,7 @@ def write_and_optionally_run_flow(
             continue
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
-        print(f"-> Running [{step['stage']}] {step['target']}...", flush=True)
+        _emit(f"-> Running [{step['stage']}] {step['target']}...")
         proc = subprocess.run(
             run_args,
             capture_output=True,
@@ -235,6 +290,16 @@ def write_and_optionally_run_flow(
 
     log_path = layout.logs_dir / "gflow_run_log.json"
     log_path.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    if will_run_video:
+        credits_after = get_live_flow_credits()
+        if credits_before is not None and credits_after is not None and credits_before >= credits_after:
+            spent = credits_before - credits_after
+        else:
+            spent = estimate_episode_credits(ep) if failed_step is None else 0
+        if spent > 0:
+            record_render_spend(ledger_path, ep.episode_id, spent)
+            _emit(f"[BUDGET] Tercatat terpakai {spent} kredit hari ini (saldo: {credits_after}).")
 
     if failed_step is not None:
         raise RuntimeError(

@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roblox-Meme-Flow Studio</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1f2630;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+    }
+    .badge.ok { color: var(--green); border-color: rgba(34,197,94,0.4); }
+    .badge.warn { color: var(--amber); border-color: rgba(245,158,11,0.4); }
+    .badge.err { color: var(--red); border-color: rgba(239,68,68,0.4); }
+    .top-stats { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .layout {
+      display: grid;
+      grid-template-columns: 310px 1fr;
+      min-height: calc(100vh - 60px);
+    }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    main {
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 1180px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card h2 {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 820px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    textarea { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; }
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 13px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: 0.15s;
+    }
+    button:hover { background: #2b3441; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
+    button.success { background: #16a34a; border-color: #16a34a; color: #fff; }
+    button.success:hover { background: #15803d; }
+    button.warn { background: #b45309; border-color: #b45309; color: #fff; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .ep-item {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ep-item.active { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+    .ep-title { font-size: 13px; font-weight: 600; }
+    .ep-meta { font-size: 11px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; }
+    .log-box {
+      background: #090c10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12px;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      color: #a5d6ff;
+    }
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .media-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .media-card img { width: 100%; border-radius: 6px; display: block; margin-bottom: 4px; }
+    .video-wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin-top: 10px; }
+    video { max-height: 460px; border-radius: 10px; border: 1px solid var(--border); background: #000; }
+    .trend-chip {
+      display: inline-block;
+      margin: 2px 4px 2px 0;
+      padding: 3px 8px;
+      font-size: 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+    .check-inline { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text); }
+    .check-inline input { width: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🎬 Roblox-Meme-Flow Studio</h1>
+    <div class="top-stats">
+      <span id="statBalance" class="badge">Saldo Flow: ...</span>
+      <span id="statDaily" class="badge ok">Hari ini: 0/1 video · 0/50 cr</span>
+      <button onclick="loadStatus(true)">🔄 Cek Saldo Live</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <strong>📂 Daftar Episode</strong>
+        <button onclick="loadEpisodes()" style="padding:4px 8px;font-size:11px;">Refresh</button>
+      </div>
+      <div id="episodeList" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:60vh;"></div>
+
+      <div class="card" style="padding:12px;">
+        <h2 style="font-size:13px;margin-bottom:8px;">🛡️ Limitasi Kredit Harian</h2>
+        <div class="grid-2">
+          <div>
+            <label>Limit Kredit/Hari</label>
+            <input id="setDailyLimit" type="number" value="50" min="10" />
+          </div>
+          <div>
+            <label>Max Video/Hari</label>
+            <input id="setMaxVideos" type="number" value="1" min="1" />
+          </div>
+        </div>
+        <div class="btn-row">
+          <button onclick="saveSettings()" style="width:100%;">Simpan Limit</button>
+        </div>
+        <p class="muted" style="margin:8px 0 0;">
+          Top-up Google Flow +50 cr/hari → preset <strong>4×4s (48 cr)</strong> = 1 video/hari selamanya!
+        </p>
+      </div>
+    </aside>
+
+    <main>
+      <!-- STEP 1: RISET VIRAL & GENERATE SCRIPT (T3 / KILO) -->
+      <section class="card">
+        <h2>
+          <span>1️⃣ Riset Viral (YT / TikTok / IG) &amp; Generate Script</span>
+          <span id="skillsBadge" class="badge">Skills: ...</span>
+        </h2>
+        <div class="grid-3">
+          <div>
+            <label>AI Skill / Jenis Konten</label>
+            <select id="genMode">
+              <option value="meme_roblox_id">Meme Roblox "Di Dunia Ini..." (Gen-Z Viral)</option>
+              <option value="kids_animation_id">Animasi Konten Anak-Anak (Family-Friendly)</option>
+            </select>
+          </div>
+          <div>
+            <label>Preset Budget Kredit (1 Video/Hari)</label>
+            <select id="genBudget"></select>
+          </div>
+          <div>
+            <label>Preset Suara Voiceover</label>
+            <select id="genVoice"></select>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
+          <div>
+            <label>Topik / Ide Tambahan (Opsional — kosongkan untuk ikut tren viral)</label>
+            <input id="genTopic" placeholder="Contoh: anak kos lupa matikan kipas / kelinci belajar berbagi" />
+          </div>
+          <div>
+            <label>Model Kilo CLI (untuk auto-generate langsung)</label>
+            <input id="genKiloModel" value="openai/gpt-6.2-sol" />
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="primary" onclick="runResearch()">🔍 Riset Tren Viral + Buat Prompt T3</button>
+          <button class="success" onclick="generateViaKilo()">🤖 Auto-Generate Script via Kilo CLI</button>
+          <button onclick="copyT3Prompt()" id="btnCopyPrompt" disabled>📋 Salin Prompt ke T3 Code</button>
+        </div>
+
+        <div id="researchPanel" style="display:none;margin-top:12px;">
+          <div id="trendsBox" style="margin-bottom:8px;"></div>
+          <label>Prompt Siap Kirim ke T3 Code (Gemini 4 Neon High / GPT-6.2 Sol):</label>
+          <textarea id="t3PromptBox" rows="6" readonly></textarea>
+        </div>
+      </section>
+
+      <!-- STEP 2: EDITOR YAML, OPSI AUDIO/BGM & PREVIEW (0 KREDIT) -->
+      <section class="card">
+        <h2>
+          <span id="currentEpHeader">2️⃣ Editor Script, Opsi BGM &amp; Preview (0 Kredit)</span>
+          <span id="currentBudgetBadge" class="badge">Pilih episode</span>
+        </h2>
+        <div class="grid-3" style="margin-bottom:10px;">
+          <div>
+            <label>Background Music (BGM)</label>
+            <select id="optBgm"></select>
+          </div>
+          <div>
+            <label>Volume BGM (<span id="bgmVolLabel">16%</span>)</label>
+            <input id="optBgmVol" type="range" min="0" max="0.5" step="0.02" value="0.16"
+                   oninput="document.getElementById('bgmVolLabel').textContent = Math.round(this.value*100)+'%'" />
+          </div>
+          <div>
+            <label>Override Suara VO saat Preview/Revoice</label>
+            <select id="optVoice"></select>
+          </div>
+        </div>
+
+        <label>Script Episode YAML (bisa edit langsung atau paste hasil dari T3 Code):</label>
+        <textarea id="yamlEditor" rows="12" placeholder="Pilih episode di kiri atau paste YAML baru dari T3 Code di sini..."></textarea>
+
+        <div class="btn-row">
+          <button onclick="saveYaml()">💾 Simpan &amp; Validasi YAML</button>
+          <button class="primary" onclick="runPreview()">🎨 Step 2: Generate Preview (0 Kredit — Gambar + Storyboard + VO)</button>
+          <button onclick="runRevoice()">🎵 Update Audio/BGM Saja (0 Kredit)</button>
+          <button onclick="openFolder()">📁 Buka Folder di Explorer</button>
+        </div>
+      </section>
+
+      <!-- STEP 3: REQUEST KE GOOGLE FLOW (RENDER VIDEO + CREDIT GUARD) -->
+      <section class="card">
+        <h2>
+          <span>3️⃣ Request Video ke Google Flow &amp; Hasil Final</span>
+          <span id="jobStatusBadge" class="badge">Idle</span>
+        </h2>
+        <div id="budgetDetail" class="muted" style="margin-bottom:10px;">Pilih episode untuk melihat estimasi kredit.</div>
+        <div class="btn-row">
+          <button class="success" id="btnRender" onclick="runRender()">🚀 Step 3: Request Video ke Google Flow &amp; Render MP4</button>
+          <label class="check-inline">
+            <input type="checkbox" id="chkOverride" /> Override limit harian (hanya jika benar-benar perlu)
+          </label>
+          <label class="check-inline">
+            <input type="checkbox" id="chkSubtitles" checked /> Burn Subtitle Meme
+          </label>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>Live Log:</label>
+          <div id="logBox" class="log-box">Siap digunakan. Pilih episode atau klik Riset Tren Viral di atas.</div>
+        </div>
+
+        <div id="assetsPanel" style="margin-top:14px;"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let currentFilename = null;
+    let pollTimer = null;
+
+    async function api(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+      return data;
+    }
+
+    function setLog(lines) {
+      const box = document.getElementById("logBox");
+      box.textContent = Array.isArray(lines) ? lines.join("\n") : String(lines);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function loadStatus(refreshCredits = false) {
+      const data = await api(`/api/status?refresh_credits=${refreshCredits}`);
+      const bal = document.getElementById("statBalance");
+      bal.textContent = data.live_credits !== null
+        ? `Saldo Flow: ${data.live_credits} cr`
+        : `Saldo Flow: klik Cek Saldo Live`;
+      bal.className = "badge " + (data.live_credits !== null ? "ok" : "");
+
+      const daily = document.getElementById("statDaily");
+      daily.textContent = `Hari ini (${data.today.date_wib}): ${data.today.videos_rendered}/${data.policy.max_videos_per_day} video · ${data.today.credits_spent}/${data.policy.daily_credit_limit} cr`;
+      const over = data.today.videos_rendered >= data.policy.max_videos_per_day || data.today.credits_spent >= data.policy.daily_credit_limit;
+      daily.className = "badge " + (over ? "warn" : "ok");
+
+      document.getElementById("setDailyLimit").value = data.policy.daily_credit_limit;
+      document.getElementById("setMaxVideos").value = data.policy.max_videos_per_day;
+      document.getElementById("skillsBadge").textContent = "Skills: " + data.skills.join(", ");
+
+      // Populate dropdowns once
+      const budgetSel = document.getElementById("genBudget");
+      if (!budgetSel.options.length) {
+        for (const [k, v] of Object.entries(data.budget_presets)) {
+          budgetSel.add(new Option(v.label, k));
+        }
+      }
+      const voiceGen = document.getElementById("genVoice");
+      const voiceOpt = document.getElementById("optVoice");
+      if (!voiceGen.options.length) {
+        voiceOpt.add(new Option("(Ikuti YAML Episode)", ""));
+        for (const [k, v] of Object.entries(data.voice_presets)) {
+          voiceGen.add(new Option(v.label, k));
+          voiceOpt.add(new Option(v.label, k));
+        }
+      }
+      const bgmSel = document.getElementById("optBgm");
+      if (!bgmSel.options.length) {
+        bgmSel.add(new Option("(Tanpa BGM)", ""));
+        for (const f of data.bgm_files) {
+          bgmSel.add(new Option(f, f));
+        }
+        if (data.bgm_files.length) bgmSel.value = data.bgm_files[0];
+      }
+    }
+
+    async function saveSettings() {
+      const payload = {
+        daily_credit_limit: Number(document.getElementById("setDailyLimit").value),
+        max_videos_per_day: Number(document.getElementById("setMaxVideos").value),
+        daily_refill_credits: 50,
+      };
+      await api("/api/settings", { method: "POST", body: JSON.stringify(payload) });
+      await loadStatus(false);
+      if (currentFilename) await selectEpisode(currentFilename);
+      setLog("Limit kredit harian berhasil disimpan.");
+    }
+
+    async function loadEpisodes() {
+      const data = await api("/api/episodes");
+      const list = document.getElementById("episodeList");
+      list.innerHTML = "";
+      for (const ep of data.episodes) {
+        const div = document.createElement("div");
+        div.className = "ep-item" + (ep.filename === currentFilename ? " active" : "");
+        div.onclick = () => selectEpisode(ep.filename);
+        const modeTag = ep.content_mode === "kids_animation_id" ? "🧸 Anak" : "😂 Meme";
+        const videoTag = ep.has_final_video ? "✅ MP4" : (ep.has_storyboard ? "🖼️ Storyboard" : "📝 Draft");
+        div.innerHTML = `
+          <div class="ep-title">${ep.title_id || ep.filename}</div>
+          <div class="ep-meta">
+            <span>${modeTag}</span>
+            <span>${ep.duration_seconds || "?"}s · ~${ep.estimated_credits || "?"} cr</span>
+            <span>${videoTag}</span>
+          </div>
+        `;
+        list.appendChild(div);
+      }
+      if (!currentFilename && data.episodes.length) {
+        await selectEpisode(data.episodes[0].filename);
+      }
+    }
+
+    async function selectEpisode(filename) {
+      currentFilename = filename;
+      const data = await api(`/api/episodes/${encodeURIComponent(filename)}`);
+      document.getElementById("currentEpHeader").textContent = `2️⃣ ${data.episode.title_id} (${filename})`;
+      document.getElementById("yamlEditor").value = data.yaml_text;
+      if (data.episode.bgm_path) {
+        document.getElementById("optBgm").value = data.episode.bgm_path;
+      }
+      document.getElementById("optBgmVol").value = data.episode.bgm_volume ?? 0.16;
+      document.getElementById("bgmVolLabel").textContent = Math.round((data.episode.bgm_volume ?? 0.16) * 100) + "%";
+      document.getElementById("chkSubtitles").checked = data.episode.enable_subtitles !== false;
+
+      const b = data.budget;
+      const badge = document.getElementById("currentBudgetBadge");
+      badge.textContent = `Estimasi: ${b.estimated_episode_credits} cr (${b.allowed ? "Masuk Limit" : "Di Atas Limit"})`;
+      badge.className = "badge " + (b.allowed ? "ok" : "warn");
+      document.getElementById("budgetDetail").textContent =
+        `${b.reason} | Folder output: ${data.assets.folder}`;
+
+      renderAssets(data.assets);
+      document.querySelectorAll(".ep-item").forEach(el => {
+        el.classList.toggle("active", el.querySelector(".ep-title").textContent === data.episode.title_id);
+      });
+    }
+
+    function renderAssets(assets) {
+      const panel = document.getElementById("assetsPanel");
+      const ts = Date.now();
+      let html = "";
+      if (assets.final_video_url) {
+        html += `
+          <h3>🎥 Video Final Siap Upload (01_final/final_9x16.mp4)</h3>
+          <div class="video-wrap">
+            <video controls src="${assets.final_video_url}?t=${ts}"></video>
+            <div style="flex:1;min-width:240px;">
+              ${assets.storyboard_url ? `<label>Storyboard:</label><img src="${assets.storyboard_url}?t=${ts}" style="max-height:360px;border-radius:8px;border:1px solid var(--border);" />` : ""}
+            </div>
+          </div>
+        `;
+      } else if (assets.storyboard_url) {
+        html += `<h3>🖼️ Storyboard Preview (03_images/storyboard.jpg)</h3>
+                 <img src="${assets.storyboard_url}?t=${ts}" style="max-height:420px;border-radius:8px;border:1px solid var(--border);" />`;
+      }
+      if (assets.voiceover_url) {
+        html += `<div style="margin-top:10px;"><label>🔊 Voiceover Bahasa Indonesia (04_audio/voiceover.mp3):</label>
+                 <audio controls src="${assets.voiceover_url}?t=${ts}" style="width:100%;max-width:460px;"></audio></div>`;
+      }
+      if (assets.refs && assets.refs.length) {
+        html += `<h3 style="margin-top:14px;">🧩 Gambar Referensi (03_images/refs/)</h3><div class="media-grid">`;
+        for (const r of assets.refs) {
+          html += `<div class="media-card"><img src="${r.url}?t=${ts}" />${r.name}</div>`;
+        }
+        html += `</div>`;
+      }
+      panel.innerHTML = html || `<p class="muted">Belum ada aset preview untuk episode ini. Klik "Generate Preview (0 Kredit)" dulu.</p>`;
+    }
+
+    async function runResearch() {
+      setLog("Mengambil tren viral Indonesia (Google Trends RSS + playbook algoritma YT/TikTok/IG)...");
+      const payload = {
+        content_mode: document.getElementById("genMode").value,
+        budget_preset: document.getElementById("genBudget").value,
+        voice_preset: document.getElementById("genVoice").value,
+        topic_hint: document.getElementById("genTopic").value,
+        bgm_path: document.getElementById("optBgm").value || "assets/bgm/in_this_town_bgm.mp3",
+      };
+      const data = await api("/api/research", { method: "POST", body: JSON.stringify(payload) });
+      document.getElementById("researchPanel").style.display = "block";
+      document.getElementById("t3PromptBox").value = data.t3_prompt;
+      document.getElementById("btnCopyPrompt").disabled = false;
+      const trendsHtml = (data.brief.live_trends_id || [])
+        .map(t => `<span class="trend-chip">🔥 ${t.title}${t.traffic ? " · " + t.traffic : ""}</span>`)
+        .join("");
+      document.getElementById("trendsBox").innerHTML = trendsHtml || `<span class="muted">Menggunakan bank sudut viral Indonesia (${data.brief.fetch_warning || "siap"}).</span>`;
+      setLog("Riset viral selesai! Klik 'Salin Prompt ke T3 Code' untuk generate lewat T3, atau klik 'Auto-Generate Script via Kilo CLI'.");
+    }
+
+    async function copyT3Prompt() {
+      const txt = document.getElementById("t3PromptBox").value;
+      await navigator.clipboard.writeText(txt);
+      setLog("Prompt riset viral tersalin ke clipboard! Paste ke chat T3 Code, lalu paste hasil YAML ke Editor di bawah dan klik Simpan.");
+    }
+
+    async function saveYaml() {
+      try {
+        const yamlText = document.getElementById("yamlEditor").value;
+        const res = await api("/api/episodes/save", {
+          method: "POST",
+          body: JSON.stringify({ yaml_text: yamlText, filename: null }),
+        });
+        setLog(`Tersimpan & valid: episodes/${res.filename}` + (res.warnings.length ? "\nWarnings: " + JSON.stringify(res.warnings) : ""));
+        await loadEpisodes();
+        await selectEpisode(res.filename);
+      } catch (err) {
+        setLog("ERROR Validasi YAML:\n" + err.message);
+      }
+    }
+
+    function audioOverridesPayload() {
+      return {
+        filename: currentFilename,
+        override_limit: document.getElementById("chkOverride").checked,
+        voice_preset: document.getElementById("optVoice").value || null,
+        bgm_path: document.getElementById("optBgm").value,
+        bgm_volume: Number(document.getElementById("optBgmVol").value),
+        enable_subtitles: document.getElementById("chkSubtitles").checked,
+      };
+    }
+
+    async function generateViaKilo() {
+      const payload = {
+        content_mode: document.getElementById("genMode").value,
+        budget_preset: document.getElementById("genBudget").value,
+        voice_preset: document.getElementById("genVoice").value,
+        topic_hint: document.getElementById("genTopic").value,
+        bgm_path: document.getElementById("optBgm").value || "assets/bgm/in_this_town_bgm.mp3",
+        kilo_model: document.getElementById("genKiloModel").value,
+      };
+      const res = await api("/api/generate-script", { method: "POST", body: JSON.stringify(payload) });
+      pollJob(res.job_id, async (done) => {
+        await loadEpisodes();
+        if (done.result && done.result.saved) await selectEpisode(done.result.saved.filename);
+      });
+    }
+
+    async function runPreview() {
+      if (!currentFilename) return alert("Pilih episode dulu.");
+      const res = await api("/api/jobs/preview", { method: "POST", body: JSON.stringify(audioOverridesPayload()) });
+      pollJob(res.job_id, async () => {
+        await loadEpisodes();
+        await selectEpisode(currentFilename);
+      });
+    }
+
+    async function runRender() {
+      if (!currentFilename) return alert("Pilih episode dulu.");
+      const res = await api("/api/jobs/render", { method: "POST", body: JSON.stringify(audioOverridesPayload()) });
+      pollJob(res.job_id, async () => {
+        await loadStatus(true);
+        await loadEpisodes();
+        await selectEpisode(currentFilename);
+      });
+    }
+
+    async function runRevoice() {
+      if (!currentFilename) return alert("Pilih episode dulu.");
+      const res = await api("/api/jobs/revoice", { method: "POST", body: JSON.stringify(audioOverridesPayload()) });
+      pollJob(res.job_id, async () => {
+        await loadEpisodes();
+        await selectEpisode(currentFilename);
+      });
+    }
+
+    async function openFolder() {
+      if (!currentFilename) return;
+      await api(`/api/episodes/${encodeURIComponent(currentFilename)}/open-folder`, { method: "POST" });
+    }
+
+    function pollJob(jobId, onDone) {
+      if (pollTimer) clearInterval(pollTimer);
+      const badge = document.getElementById("jobStatusBadge");
+      badge.textContent = "Running...";
+      badge.className = "badge warn";
+      pollTimer = setInterval(async () => {
+        try {
+          const st = await api(`/api/jobs/${jobId}`);
+          setLog(st.logs.length ? st.logs : ["Menjalankan..."]);
+          if (st.status !== "running") {
+            clearInterval(pollTimer);
+            badge.textContent = st.status === "done" ? "Selesai" : "Error";
+            badge.className = "badge " + (st.status === "done" ? "ok" : "err");
+            if (st.status === "done" && onDone) await onDone(st);
+          }
+        } catch (err) {
+          clearInterval(pollTimer);
+          setLog("Polling error: " + err.message);
+        }
+      }, 1500);
+    }
+
+    (async () => {
+      await loadStatus(false);
+      await loadEpisodes();
+    })();
+  </script>
+</body>
+</html>

@@ -25,10 +25,11 @@ Always read and apply the relevant project skills before writing episode scripts
 
 - `.agents/skills/google-flow-scripting/SKILL.md` — Continuity rules (`@PascalCase` handles, no em dashes, storyboard-first workflow, `GENERATE THE STORYBOARD IMAGE NOW.`, pre-generation validation).
 - `.agents/skills/di-dunia-ini-roblox-id/SKILL.md` — Indonesian "Di Dunia Ini..." blocky-avatar comedy structure, visual style guardrails (avoid raw trademark terms in visual prompts), hook/twist pacing, and TTS/subtitle conventions.
+- `.agents/skills/kids-animation-id/SKILL.md` & `.agents/skills/ai-kids-cartoon-videos/SKILL.md` — Family-friendly Indonesian 3D kids animation rules (YouTube Kids/Shorts/Reels safe, bright pastel toy/cartoon aesthetics, <= 50 daily credits budget).
 
 ## Safety, Cost, And Credit Boundaries
 
-- **Google Flow Credit Protection:** `flow_runner` MUST default to manifest-only dry-run with `--max-credits 0` (`FLOW_DRY_RUN=true`). Never trigger credit-spending Veo/Omni video generations without explicit user approval and `--execute --spend`.
+- **Google Flow Credit Protection & Daily Budget (<= 50 Credits/Day):** `flow_runner` MUST default to manifest-only dry-run with `--max-credits 0` (`FLOW_DRY_RUN=true`). Live renders enforce `credit_guard.py` (`DAILY_CREDIT_LIMIT=50`, `MAX_VIDEOS_PER_DAY=1`) matching Google Flow's +50 daily refill (default sustainable budget: **4 scenes x 4s = 48 credits** on `omni-1.2-flash`). Never override limits or spend credits without explicit user approval.
 - **Google Account Safety:** Use `gflow-cli` attached to the operator's own signed-in Chrome CDP session. Never ask for, log, print, or store Google passwords, cookies, or session tokens in repo files.
 - **No Unapproved Auto-Publishing:** Generating videos locally is NOT authorization to auto-upload to TikTok, Instagram, or YouTube. Keep `ENABLE_AUTO_UPLOAD=false`; always output finished videos to `outputs/<episode_id>/` for human review first.
 - **No Unapproved Paid APIs:** Default TTS (`edge-tts`) and assembly (`imageio-ffmpeg` / `ffmpeg`) are zero-cost local tools. Do not introduce paid third-party APIs without explicit owner approval.

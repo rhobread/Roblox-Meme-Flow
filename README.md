@@ -16,23 +16,30 @@ Daily short-form Indonesian meme video pipeline inspired by the **"In This World
 
 ---
 
-## Cara Paling Mudah (1 Perintah via `run.ps1`)
+## Cara Paling Mudah (Web UI Studio & `run.ps1`)
 
-Buka PowerShell di `C:\Personal Projects\Roblox-Meme-Flow` lalu gunakan launcher `.\run.ps1`:
+Buka PowerShell di `C:\Personal Projects\Roblox-Meme-Flow` (atau klik tombol **Studio Web UI** di toolbar T3 Code):
 
 ```powershell
-# Lihat daftar semua script episode yang tersedia
-.\run.ps1 list
+# Buka Studio Web UI di browser (http://127.0.0.1:8787)
+.\run.ps1 ui
 
-# Cek saldo kredit Google Flow (0 kredit)
-.\run.ps1 credits
-
-# STEP 1 (0 kredit): Validasi + Gambar Referensi + Storyboard + Voiceover Bahasa Indonesia
-.\run.ps1 preview episodes\viral_ep01_utang_strobo.yaml
-
-# STEP 2 (memotong kredit video): Generate 4 klip video + gabung otomatis jadi final_9x16.mp4
-.\run.ps1 render episodes\viral_ep01_utang_strobo.yaml
+# Atau langsung dari terminal:
+.\run.ps1 list                                          # Lihat semua script episode
+.\run.ps1 credits                                       # Cek saldo kredit Google Flow (0 kredit)
+.\run.ps1 research                                      # Riset tren viral Indonesia + prompt T3
+.\run.ps1 preview episodes\viral_ep01_utang_strobo.yaml # STEP 1 (0 kredit): Gambar + Storyboard + VO
+.\run.ps1 render  episodes\viral_ep01_utang_strobo.yaml # STEP 2 (limit 50 cr/hari): Video + BGM + Subtitle
+.\run.ps1 revoice episodes\viral_ep01_utang_strobo.yaml # Ganti suara/BGM saja (0 kredit)
+.\run.ps1 open    episodes\viral_ep01_utang_strobo.yaml # Buka folder episode di File Explorer
 ```
+
+### Limitasi Kredit Harian (1 Video/Hari Selamanya)
+Google Flow menambah **+50 kredit/hari**. Dengan `omni-1.2-flash` (`3 kredit/detik`):
+- **Preset Hemat `hemat_50` (Rekomendasi):** **4 scene x 4 detik = 16 detik = 48 kredit** (<= 50/hari, net +2 kredit/hari — **1 video setiap hari selamanya** tanpa menguras saldo utama!).
+- **Preset 3 Scene `hemat_3scene`:** **3 scene x 5 detik = 15 detik = 45 kredit** (<= 50/hari).
+- **Preset Seimbang `seimbang_60`:** **4 scene x 5 detik = 20 detik = 60 kredit** (net -10/hari dari saldo).
+- **Preset Full `full_72`:** **4 scene x 6 detik = 24 detik = 72 kredit** (net -22/hari dari saldo).
 
 ---
 

@@ -31,7 +31,7 @@ class LocationAsset(BaseModel):
 class SceneSpec(BaseModel):
     scene_number: int = Field(..., ge=1)
     beat: Literal["hook", "escalation", "twist", "outro"]
-    duration_seconds: Literal[4, 6, 8, 10] = 6
+    duration_seconds: Literal[3, 4, 5, 6, 8, 10] = 4
     characters: list[str] = Field(default_factory=list)
     location: str
     narration_id: str = Field(..., min_length=5)
@@ -45,6 +45,7 @@ class EpisodeSpec(BaseModel):
     episode_id: str = Field(..., min_length=3)
     title_id: str
     world_rule_id: str
+    content_mode: Literal["meme_roblox_id", "kids_animation_id"] = "meme_roblox_id"
     aspect_ratio: Literal["9:16", "16:9"] = "9:16"
     image_model: str = "nano-2.1"
     video_model: str = "omni-1.2-flash"
@@ -57,6 +58,9 @@ class EpisodeSpec(BaseModel):
         le=1.5,
         description="FFmpeg pitch shift multiplier (1.0=normal, 1.12-1.25=comedic Roblox meme pitch).",
     )
+    bgm_path: Optional[str] = "assets/bgm/in_this_town_bgm.mp3"
+    bgm_volume: float = Field(default=0.16, ge=0.0, le=1.0)
+    enable_subtitles: bool = True
     style_bible: str = DEFAULT_STYLE_BIBLE
     characters: list[CharacterAsset] = Field(..., min_length=1)
     locations: list[LocationAsset] = Field(..., min_length=1)

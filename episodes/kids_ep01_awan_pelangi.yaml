@@ -1,0 +1,83 @@
+episode_id: "2026-11-24-kids01-awan-pelangi"
+title_id: "Di Dunia Awan, Kucing Milo Berbagi Pelangi"
+world_rule_id: "Di dunia awan warna-warni, setiap kali kamu berbagi dengan teman, pelangi ajaib langsung muncul di langit."
+content_mode: "kids_animation_id"
+aspect_ratio: "9:16"
+image_model: "nano-2.1"
+video_model: "omni-1.2-flash"
+tts_voice: "id-ID-GadisNeural"
+tts_rate: "+10%"
+tts_pitch: "+24Hz"
+tts_pitch_shift: 1.12
+bgm_path: "assets/bgm/in_this_town_bgm.mp3"
+bgm_volume: 0.16
+style_bible: "Vibrant stylized 3D toy-like cartoon animation for children, soft glossy rounded playful blocky-cute characters with big friendly sparkling eyes, bright sunny pastel storybook colors, warm soft global illumination, zero on-screen text or watermarks, vertical 9:16 framing."
+
+characters:
+  - handle: "@MiloKucing"
+    role: "Kucing mainan oranye ceria yang suka menolong teman"
+    visual_description: "Cute stylized 3D glossy toy orange cat character with soft rounded ears, bright big friendly eyes, happy smile, tiny fluffy tail"
+    wardrobe: "sky-blue overalls with a tiny yellow star badge, red sneakers"
+    expression_default: "warm joyful smile with sparkling eyes"
+  - handle: "@BobiKelinci"
+    role: "Kelinci putih lucu yang tanamannya sedang layu"
+    visual_description: "Cute stylized 3D glossy toy white bunny character with long floppy pink-lined ears, big expressive eyes, cheerful round cheeks"
+    wardrobe: "mint-green striped sweater, yellow shorts, little brown boots"
+    expression_default: "gentle hopeful cute expression"
+
+locations:
+  - handle: "@TamanAwanPelangi"
+    visual_description: "Magical sunny playground resting on fluffy white marshmallow clouds in colorful 3D toy cartoon style, little flower pots, tiny wooden fence, pastel blue sky with floating bubbles"
+    lighting: "bright cheerful golden morning sunshine with soft pastel sparkles"
+    key_props:
+      - "little watering can shaped like a smiling cloud"
+      - "pots of tiny pastel flowers"
+      - "sparkling rainbow droplets"
+
+scenes:
+  - scene_number: 1
+    beat: "hook"
+    duration_seconds: 4
+    characters:
+      - "@MiloKucing"
+    location: "@TamanAwanPelangi"
+    narration_id: "Di dunia awan warna-warni, kucing Milo punya penyiram pelangi ajaib!"
+    visual_prompt: "At @TamanAwanPelangi, @MiloKucing skips happily across fluffy white clouds holding a smiling cloud-shaped watering can that shimmers with tiny colorful rainbow sparkles."
+    camera: "bright vertical medium tracking shot following joyful @MiloKucing"
+    audio_sfx: "cheerful magic chimes, playful cartoon hop boing"
+
+  - scene_number: 2
+    beat: "escalation"
+    duration_seconds: 4
+    characters:
+      - "@MiloKucing"
+      - "@BobiKelinci"
+    location: "@TamanAwanPelangi"
+    narration_id: "Tapi lihat, bunga kesayangan kelinci Bobi lagi layu dan Bobi jadi sedih."
+    visual_prompt: "At @TamanAwanPelangi, @BobiKelinci droops his floppy ears looking gently sad beside three sleepy little flower pots while @MiloKucing notices and hurries over to help."
+    camera: "warm vertical two-shot framing @BobiKelinci beside the sleepy flowers as @MiloKucing approaches"
+    audio_sfx: "soft gentle cartoon sigh, cute tiptoe bells"
+
+  - scene_number: 3
+    beat: "twist"
+    duration_seconds: 4
+    characters:
+      - "@MiloKucing"
+      - "@BobiKelinci"
+    location: "@TamanAwanPelangi"
+    narration_id: "Milo langsung berbagi air pelangi, wush! Semua bunga langsung mekar dan menari!"
+    visual_prompt: "At @TamanAwanPelangi, @MiloKucing tilts the watering can pouring glowing rainbow sparkles over the pots; instantly giant cheerful colorful flowers pop open and bounce playfully while @BobiKelinci claps in amazement."
+    camera: "dynamic vertical upward bloom shot as rainbow sparkles lift the flowers around @MiloKucing and @BobiKelinci"
+    audio_sfx: "magical sparkling whoosh, cheerful flower pop chimes, happy giggles"
+
+  - scene_number: 4
+    beat: "outro"
+    duration_seconds: 4
+    characters:
+      - "@MiloKucing"
+      - "@BobiKelinci"
+    location: "@TamanAwanPelangi"
+    narration_id: "Seru kan berbagi sama teman? Kamu paling suka warna pelangi yang mana?"
+    visual_prompt: "At @TamanAwanPelangi, @MiloKucing and @BobiKelinci hold hands jumping happily beneath a bright glowing rainbow arch surrounded by blooming flowers and floating soap bubbles."
+    camera: "centered joyful vertical wide shot framing @MiloKucing and @BobiKelinci under the rainbow"
+    audio_sfx: "happy xylophone melody, bubble pops, cheerful applause"

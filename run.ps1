@@ -10,7 +10,7 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("help", "list", "doctor", "credits", "login", "preview", "render", "revoice", "open")]
+    [ValidateSet("help", "ui", "list", "doctor", "credits", "login", "research", "preview", "render", "revoice", "open")]
     [string]$Action = "help",
 
     [Parameter(Position = 1)]
@@ -38,14 +38,24 @@ switch ($Action) {
     "help" {
         Write-Host ""
         Write-Host "=== Roblox-Meme-Flow (Cara Mudah) ===" -ForegroundColor Cyan
+        Write-Host "  .\run.ps1 ui                         -> Buka Web UI Studio di browser (http://127.0.0.1:8787)"
         Write-Host "  .\run.ps1 list                       -> Lihat semua file episode"
         Write-Host "  .\run.ps1 credits                    -> Cek saldo kredit Google Flow"
+        Write-Host "  .\run.ps1 research                   -> Riset tren viral Indonesia + buat prompt T3"
         Write-Host "  .\run.ps1 login                      -> Login ulang ke Google Flow"
         Write-Host "  .\run.ps1 preview <file.yaml>        -> Validasi + Gambar Ref + Storyboard (0 kredit) + VO ID"
         Write-Host "  .\run.ps1 render  <file.yaml>        -> Generate Video (pakai kredit) + Gabung 01_final\final_9x16.mp4"
         Write-Host "  .\run.ps1 revoice <file.yaml>        -> Ganti suara/pitch VO + gabung ulang MP4 (0 kredit!)"
         Write-Host "  .\run.ps1 open    <file.yaml>        -> Buka folder output episode di File Explorer"
         Write-Host ""
+    }
+    "ui" {
+        Write-Host "Membuka Roblox-Meme-Flow Studio di http://127.0.0.1:8787 ..." -ForegroundColor Cyan
+        Start-Process "http://127.0.0.1:8787"
+        & $Py -m roblox_meme_flow.cli ui --host 127.0.0.1 --port 8787
+    }
+    "research" {
+        & $Py -m roblox_meme_flow.cli research
     }
     "list" {
         Get-ChildItem (Join-Path $PSScriptRoot "episodes\*.yaml") | Select-Object Name, LastWriteTime

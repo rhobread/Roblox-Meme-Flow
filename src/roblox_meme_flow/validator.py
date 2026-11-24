@@ -120,12 +120,20 @@ def validate_episode(ep: EpisodeSpec) -> list[ValidationIssue]:
                 )
             )
         lowered_hook = first.narration_id.strip().lower()
-        if not (lowered_hook.startswith("di dunia ini") or lowered_hook.startswith("di kota ini")):
+        valid_prefixes = (
+            ("di dunia", "di kota", "di taman", "halo", "yuk", "lihat")
+            if ep.content_mode == "kids_animation_id"
+            else ("di dunia ini", "di kota ini")
+        )
+        if not lowered_hook.startswith(valid_prefixes):
             issues.append(
                 ValidationIssue(
                     severity="warning",
                     code="HOOK_PHRASE",
-                    message="Scene 1 narration ideally opens with 'Di dunia ini...' or 'Di kota ini...'.",
+                    message=(
+                        "Scene 1 narration ideally opens with a strong hook phrase "
+                        f"({', '.join(valid_prefixes[:2])}...)."
+                    ),
                 )
             )
 

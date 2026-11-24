@@ -197,6 +197,7 @@ def assemble_video(
     out_dir: Path,
     voiceover_path: Path | None = None,
     srt_path: Path | None = None,
+    bgm_path: Path | None = None,
 ) -> Path:
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
@@ -206,6 +207,17 @@ def assemble_video(
 
     layout = EpisodeLayout.for_episode(out_dir, ep.episode_id)
     layout.ensure_dirs()
+
+    # Resolve BGM file if configured
+    resolved_bgm: Path | None = None
+    if bgm_path and bgm_path.exists():
+        resolved_bgm = bgm_path
+    elif ep.bgm_path:
+        cand = Path(ep.bgm_path)
+        if not cand.is_absolute():
+            cand = Path.cwd() / cand
+        if cand.exists():
+            resolved_bgm = cand
 
     # Normalize each clip to uniform 1080x1920 30fps H.264/AAC first so concat never glitches
     norm_dir = layout.clips_norm_dir
@@ -265,7 +277,7 @@ def assemble_video(
     output_mp4 = layout.final_dir / "final_9x16.mp4"
 
     vf_filters = ["fps=30"]
-    if srt_path and srt_path.exists():
+    if ep.enable_subtitles and srt_path and srt_path.exists():
         escaped = _escape_ffmpeg_filter_path(srt_path)
         style = (
             "FontName=Arial,FontSize=18,PrimaryColour=&H00FFFFFF,"
@@ -284,22 +296,50 @@ def assemble_video(
         str(concat_list),
     ]
 
+    vo_idx: int | None = None
+    bgm_idx: int | None = None
+    next_idx = 1
+
     if voiceover_path and voiceover_path.exists():
         cmd.extend(["-i", str(voiceover_path)])
-        if all_have_audio:
-            # Mix subtle Google Flow SFX (30%) beneath clear Indonesian VO (100%)
-            cmd.extend(
-                [
-                    "-filter_complex",
-                    "[0:a]volume=0.30[sfx];[1:a]volume=1.0,apad[vo];[sfx][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]",
-                    "-map",
-                    "0:v:0",
-                    "-map",
-                    "[aout]",
-                ]
-            )
-        else:
-            cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
+        vo_idx = next_idx
+        next_idx += 1
+
+    if resolved_bgm is not None and ep.bgm_volume > 0.0:
+        cmd.extend(["-stream_loop", "-1", "-i", str(resolved_bgm)])
+        bgm_idx = next_idx
+        next_idx += 1
+
+    fade_start = max(0.5, float(ep.total_duration_seconds) - 1.2)
+    audio_parts: list[str] = []
+    mix_labels: list[str] = []
+
+    if all_have_audio:
+        sfx_vol = 0.25 if vo_idx is not None else 0.85
+        audio_parts.append(f"[0:a]volume={sfx_vol:.2f}[sfx]")
+        mix_labels.append("[sfx]")
+
+    if vo_idx is not None:
+        audio_parts.append(f"[{vo_idx}:a]volume=1.00,apad[vo]")
+        mix_labels.append("[vo]")
+
+    if bgm_idx is not None:
+        audio_parts.append(
+            f"[{bgm_idx}:a]volume={ep.bgm_volume:.2f},"
+            f"afade=t=in:st=0:d=0.4,"
+            f"afade=t=out:st={fade_start:.2f}:d=1.2[bgm]"
+        )
+        mix_labels.append("[bgm]")
+
+    if len(mix_labels) >= 2:
+        filter_complex = (
+            ";".join(audio_parts)
+            + f";{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:dropout_transition=2:normalize=0[aout]"
+        )
+        cmd.extend(["-filter_complex", filter_complex, "-map", "0:v:0", "-map", "[aout]"])
+    elif len(mix_labels) == 1:
+        label = mix_labels[0]
+        cmd.extend(["-filter_complex", audio_parts[0], "-map", "0:v:0", "-map", label])
     else:
         cmd.extend(["-map", "0:v:0", "-map", "0:a?"])
 
@@ -319,6 +359,7 @@ def assemble_video(
             "aac",
             "-b:a",
             "192k",
+            "-shortest",
             str(output_mp4),
         ]
     )

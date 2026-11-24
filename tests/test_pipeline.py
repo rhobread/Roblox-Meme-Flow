@@ -1,5 +1,13 @@
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from roblox_meme_flow.credit_guard import (
+    DailyBudgetPolicy,
+    check_render_budget,
+    estimate_episode_credits,
+    record_render_spend,
+)
 from roblox_meme_flow.flow_runner import build_gflow_manifest
 from roblox_meme_flow.models import EpisodeSpec, load_episode
 from roblox_meme_flow.prompt_builder import (
@@ -9,20 +17,24 @@ from roblox_meme_flow.prompt_builder import (
     build_storyboard_prompt,
     export_plan,
 )
+from roblox_meme_flow.researcher import build_viral_research_brief
+from roblox_meme_flow.script_gen import build_t3_generation_prompt
 from roblox_meme_flow.validator import has_errors, validate_episode
+from roblox_meme_flow.web_ui import create_app
 
 EPISODES_DIR = Path(__file__).resolve().parent.parent / "episodes"
 SAMPLE_EPISODE = EPISODES_DIR / "sample_ep01_kursi_kosong.yaml"
+KIDS_EPISODE = EPISODES_DIR / "kids_ep01_awan_pelangi.yaml"
 
 
 def test_all_episodes_pass_validation() -> None:
     episode_files = sorted(EPISODES_DIR.glob("*.yaml"))
-    assert len(episode_files) >= 5
+    assert len(episode_files) >= 6
     for path in episode_files:
         ep = load_episode(path)
         issues = validate_episode(ep)
         assert not issues, f"Unexpected issues in {path.name}: {issues}"
-        assert ep.total_duration_seconds == 24
+        assert 12 <= ep.total_duration_seconds <= 32
 
 
 def test_storyboard_prompt_starts_with_hard_rule() -> None:
@@ -102,3 +114,70 @@ def test_export_plan_and_srt_generation(tmp_path: Path) -> None:
     srt = build_srt(ep)
     assert "00:00:00,000 -->" in srt
     assert "DI DUNIA INI" in srt
+
+
+def test_credit_guard_enforces_daily_50_credit_and_1_video_limit(tmp_path: Path) -> None:
+    ledger = tmp_path / "credit_ledger.json"
+    policy = DailyBudgetPolicy(daily_credit_limit=50, max_videos_per_day=1, daily_refill_credits=50)
+
+    kids_ep = load_episode(KIDS_EPISODE)  # 4x4s = 48 credits
+    assert estimate_episode_credits(kids_ep) == 48
+    ok = check_render_budget(kids_ep, ledger, live_balance=978, policy=policy)
+    assert ok.allowed is True
+    assert ok.net_daily_delta == 2
+    assert ok.estimated_runway_days == 9999
+
+    long_ep = load_episode(SAMPLE_EPISODE)  # 4x6s = 72 credits
+    assert estimate_episode_credits(long_ep) == 72
+    blocked = check_render_budget(long_ep, ledger, live_balance=978, policy=policy)
+    assert blocked.allowed is False
+
+    overridden = check_render_budget(long_ep, ledger, live_balance=978, policy=policy, override_limit=True)
+    assert overridden.allowed is True
+
+    record_render_spend(ledger, kids_ep.episode_id, 48)
+    second_same_day = check_render_budget(kids_ep, ledger, live_balance=930, policy=policy)
+    assert second_same_day.allowed is False
+    assert second_same_day.videos_rendered_today == 1
+
+
+def test_viral_research_and_t3_prompt_generation() -> None:
+    brief = build_viral_research_brief(content_mode="kids_animation_id", topic_hint="pelangi", fetch_live=False)
+    assert "youtube_shorts" in brief.algorithm_rules
+    assert "tiktok_fyp" in brief.algorithm_rules
+    assert "instagram_reels" in brief.algorithm_rules
+
+    prompt, _ = build_t3_generation_prompt(
+        project_root=EPISODES_DIR.parent,
+        content_mode="kids_animation_id",
+        budget_preset="hemat_50",
+        voice_preset="preset_d",
+        topic_hint="pelangi",
+        research_brief=brief,
+    )
+    assert "kids-animation-id" in prompt
+    assert "48 kredit" in prompt
+    assert "in_this_town_bgm.mp3" in prompt
+
+
+def test_web_ui_endpoints() -> None:
+    app = create_app(EPISODES_DIR.parent)
+    client = TestClient(app)
+
+    r_home = client.get("/")
+    assert r_home.status_code == 200
+    assert "Roblox-Meme-Flow Studio" in r_home.text
+
+    r_status = client.get("/api/status?refresh_credits=false")
+    assert r_status.status_code == 200
+    status_data = r_status.json()
+    assert "hemat_50" in status_data["budget_presets"]
+    assert "kids-animation-id" in status_data["skills"]
+
+    r_eps = client.get("/api/episodes")
+    assert r_eps.status_code == 200
+    assert len(r_eps.json()["episodes"]) >= 6
+
+    r_ep = client.get("/api/episodes/kids_ep01_awan_pelangi.yaml")
+    assert r_ep.status_code == 200
+    assert r_ep.json()["estimated_credits"] == 48
