@@ -5,21 +5,33 @@ description: Writes daily Indonesian "Di Dunia Ini..." (In This World) blocky 3D
 
 # Di Dunia Ini — Indonesian Blocky Avatar Meme Skill
 
-Use this Skill together with `.agents/skills/google-flow-scripting/SKILL.md` to create daily 18–28 second Indonesian meme storytelling episodes (`9:16` vertical).
+Use this Skill together with `.agents/skills/google-flow-scripting/SKILL.md` to create **fast-paced 30-45 second** daily Indonesian meme storytelling episodes (`9:16` vertical) within the **80-85 daily Flow credit budget**.
 
-## 1. Core Formula ("In This World" Indonesia)
+## 1. Core Formula ("In This World" Indonesia — Fast-Paced 7-9 Scenes)
 
-Every episode follows a tight **4-beat** comedic arc (default 4 scenes x 6s = 24s):
+Every default episode uses **8 scenes x 6s (`veo-lite`, ~80 credits, ~35-45s after fast-cut)** or **7-9 rapid scenes (`omni-1.2-flash`, 81-84 credits)** with continuous, energetic Indonesian narration and **zero dead pauses** (`fast_cut_sync: true`, `scene_gap_seconds: 0.10`):
 
-1. **`hook` (Scene 1, 6s):**
-   - Narration MUST open with `"Di dunia ini, ..."` or `"Di kota ini, ..."` followed by ONE absurd, hyper-specific rule rooted in Indonesian everyday life (kosan, warkop, ojol, macet, gajian, hutang, nongkrong, sekolah/kuliah, kantor, grup WA).
-   - Visual immediately shows the rule activating on a deadpan blocky avatar.
-2. **`escalation` (Scene 2, 6s):**
-   - Show the relatable everyday consequence or a friend reacting deadpan while the protagonist tries to act normal or cheat the rule.
-3. **`twist` (Scene 3, 6s):**
-   - The rule backfires dramatically with exaggerated slapstick physics (rocketing through ceiling, shrinking to keychain size, turning into a giant floating receipt, spawning 100 clones).
-4. **`outro` (Scene 4, 6s):**
-   - Quick visual punchline + short call-to-comment line in casual Bahasa Indonesia (e.g., *"Tag temen kamu yang..."* or *"Kalau kamu di dunia ini, kuat berapa menit?"*).
+1. **`hook` (Scene 1):**
+   - Narration MUST open with `"Di dunia ini, ..."` or `"Di kota ini, ..."` followed by ONE absurd, hyper-specific rule rooted in Indonesian everyday life (kosan, warkop, ojol, macet, gajian, hutang, WiFi tetangga, nongkrong, sekolah/kuliah, kantor, grup WA).
+   - Visual immediately shows the rule activating on a deadpan blocky avatar at frame 1.
+2. **`setup` (Scene 2):**
+   - Introduce the relatable Indonesian character situation and why they try to challenge or ignore the rule.
+3. **`escalation` (Scene 3):**
+   - The rule triggers visually in an exaggerated, funny way.
+4. **`complication` (Scene 4):**
+   - Someone else (Pak RT, Bu Warung, teman tongkrongan, bos) notices and raises the stakes immediately.
+5. **`climax` (Scene 5):**
+   - Protagonist attempts a hilarious desperate cover-up that fails spectacularly.
+6. **`twist` (Scene 6):**
+   - Unexpected Indonesian karma or absurd plot twist flipping the whole situation upside down!
+7. **`escalation` / aftermath (Scene 7):**
+   - Show the absurd new reality caused by the twist.
+8. **`outro` (Scene 8):**
+   - Punchy final visual gag + short Indonesian comment/tag CTA (*"Tag temen kamu yang..."* or *"Kalau kamu di dunia ini, gimana?"*) designed for loop replays and DM shares.
+
+**Pacing & Narration Density Rule:**
+- Write snappy, lively Bahasa Indonesia (~15-20 words per 6s scene, or ~10-13 words per 4s scene) with `tts_rate: "+18%"`, `tts_pitch: "+28Hz"`, `tts_pitch_shift: 1.18`, `fast_cut_sync: true`, `scene_gap_seconds: 0.10`, and `bgm_path: "assets/bgm/in_this_town_bgm.mp3"` (`bgm_volume: 0.16`).
+- Every scene MUST change action, camera angle, or expression so the viewer never gets bored.
 
 ## 2. Non-Negotiable Technical & Safety Rules
 
