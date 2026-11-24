@@ -5,7 +5,9 @@ aspect_ratio: "9:16"
 image_model: "nano-2.1"
 video_model: "omni-1.2-flash"
 tts_voice: "id-ID-ArdiNeural"
-tts_rate: "+14%"
+tts_rate: "+16%"
+tts_pitch: "+28Hz"
+tts_pitch_shift: 1.18
 
 characters:
   - handle: "@SultanReno"

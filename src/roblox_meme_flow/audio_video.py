@@ -50,20 +50,46 @@ def _has_audio_stream(ffmpeg: str, media_path: Path) -> bool:
     return "Audio:" in proc.stderr
 
 
-async def _synthesize_edge_tts(text: str, voice: str, rate: str, out_mp3: Path) -> None:
+async def _synthesize_edge_tts(
+    text: str, voice: str, rate: str, pitch: str, out_mp3: Path
+) -> None:
     import edge_tts
 
-    communicator = edge_tts.Communicate(text=text, voice=voice, rate=rate)
+    communicator = edge_tts.Communicate(text=text, voice=voice, rate=rate, pitch=pitch)
     await communicator.save(str(out_mp3))
 
 
-def _fit_scene_audio(ffmpeg: str, raw_mp3: Path, target_seconds: float, out_wav: Path) -> None:
-    """Fit a scene voiceover cleanly into target_seconds without cutting off speech."""
+def _fit_scene_audio(
+    ffmpeg: str,
+    raw_mp3: Path,
+    target_seconds: float,
+    out_wav: Path,
+    pitch_shift: float = 1.0,
+) -> None:
+    """Fit a scene voiceover cleanly into target_seconds with optional comedic pitch shift."""
     actual = _probe_duration_seconds(ffmpeg, raw_mp3)
     filters: list[str] = []
+
+    # Apply natural cartoon/meme pitch shift while preserving speaking duration
+    tempo_comp = 1.0
+    if abs(pitch_shift - 1.0) > 0.005:
+        shifted_rate = int(round(44100 * pitch_shift))
+        filters.append("aresample=44100")
+        filters.append(f"asetrate={shifted_rate}")
+        filters.append("aresample=44100")
+        tempo_comp = 1.0 / pitch_shift
+
     if actual and actual > target_seconds - 0.15:
-        tempo = min(actual / max(target_seconds - 0.15, 1.0), 1.5)
-        filters.append(f"atempo={tempo:.3f}")
+        tempo_comp *= actual / max(target_seconds - 0.15, 1.0)
+
+    # ffmpeg atempo supports [0.5, 2.0] per stage
+    if abs(tempo_comp - 1.0) > 0.005:
+        clamped = max(0.5, min(tempo_comp, 2.0))
+        filters.append(f"atempo={clamped:.3f}")
+
+    # Crisp comedic vocal presence for mobile Shorts/TikTok speakers
+    filters.append("highpass=f=120")
+    filters.append("acompressor=threshold=-16dB:ratio=3:attack=5:release=60")
     filters.append("apad")
     filters.append(f"atrim=0:{target_seconds:.3f}")
 
@@ -101,7 +127,9 @@ def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Pa
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
         full_narration = " ".join(scene.narration_id.strip() for scene in ep.scenes)
-        asyncio.run(_synthesize_edge_tts(full_narration, ep.tts_voice, ep.tts_rate, mp3_path))
+        asyncio.run(
+            _synthesize_edge_tts(full_narration, ep.tts_voice, ep.tts_rate, ep.tts_pitch, mp3_path)
+        )
         return mp3_path, srt_path
 
     fitted_wavs: list[Path] = []
@@ -110,10 +138,20 @@ def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Pa
         fitted_wav = vo_dir / f"scene_{scene.scene_number:02d}_fit.wav"
         asyncio.run(
             _synthesize_edge_tts(
-                scene.narration_id.strip(), ep.tts_voice, ep.tts_rate, raw_scene_mp3
+                scene.narration_id.strip(),
+                ep.tts_voice,
+                ep.tts_rate,
+                ep.tts_pitch,
+                raw_scene_mp3,
             )
         )
-        _fit_scene_audio(ffmpeg, raw_scene_mp3, float(scene.duration_seconds), fitted_wav)
+        _fit_scene_audio(
+            ffmpeg,
+            raw_scene_mp3,
+            float(scene.duration_seconds),
+            fitted_wav,
+            pitch_shift=ep.tts_pitch_shift,
+        )
         fitted_wavs.append(fitted_wav)
 
     concat_txt = vo_dir / "vo_concat.txt"

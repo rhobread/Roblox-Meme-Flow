@@ -49,7 +49,14 @@ class EpisodeSpec(BaseModel):
     image_model: str = "nano-2.1"
     video_model: str = "omni-1.2-flash"
     tts_voice: str = "id-ID-ArdiNeural"
-    tts_rate: str = "+10%"
+    tts_rate: str = "+16%"
+    tts_pitch: str = "+28Hz"
+    tts_pitch_shift: float = Field(
+        default=1.16,
+        ge=0.75,
+        le=1.5,
+        description="FFmpeg pitch shift multiplier (1.0=normal, 1.12-1.25=comedic Roblox meme pitch).",
+    )
     style_bible: str = DEFAULT_STYLE_BIBLE
     characters: list[CharacterAsset] = Field(..., min_length=1)
     locations: list[LocationAsset] = Field(..., min_length=1)

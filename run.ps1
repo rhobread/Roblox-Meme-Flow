@@ -10,7 +10,7 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("help", "list", "doctor", "credits", "login", "preview", "render")]
+    [ValidateSet("help", "list", "doctor", "credits", "login", "preview", "render", "revoice")]
     [string]$Action = "help",
 
     [Parameter(Position = 1)]
@@ -43,6 +43,7 @@ switch ($Action) {
         Write-Host "  .\run.ps1 login                      -> Login ulang ke Google Flow"
         Write-Host "  .\run.ps1 preview <file.yaml>        -> Validasi + Gambar Ref + Storyboard (0 kredit) + VO ID"
         Write-Host "  .\run.ps1 render  <file.yaml>        -> Generate Video (pakai kredit) + Gabung final_9x16.mp4"
+        Write-Host "  .\run.ps1 revoice <file.yaml>        -> Ganti suara/pitch VO + gabung ulang MP4 (0 kredit!)"
         Write-Host ""
     }
     "list" {
@@ -101,5 +102,26 @@ switch ($Action) {
         $finalMp4 = Join-Path $PSScriptRoot "outputs\$epId\final_9x16.mp4"
         Write-Host ""
         Write-Host "[VIDEO SIAP UPLOAD] $finalMp4" -ForegroundColor Green
+    }
+    "revoice" {
+        Write-Host "[1/2] Regenerate Voiceover Bahasa Indonesia (0 kredit)..." -ForegroundColor Cyan
+        & $Py -m roblox_meme_flow.cli voiceover $Episode
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $epId = Get-EpisodeId $Episode
+        $clipsDir = Join-Path $PSScriptRoot "outputs\$epId\clips"
+        $clips = Get-ChildItem -Path $clipsDir -Filter "scene_*.mp4" | Sort-Object Name | ForEach-Object { $_.FullName }
+        if (-not $clips -or $clips.Count -eq 0) {
+            Write-Host "[ERROR] Belum ada klip video di $clipsDir. Jalankan render dulu." -ForegroundColor Red
+            exit 1
+        }
+
+        Write-Host "[2/2] Menggabungkan ulang $($clips.Count) klip + VO baru + subtitle (0 kredit)..." -ForegroundColor Cyan
+        & $Py -m roblox_meme_flow.cli assemble $Episode --clips @clips
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $finalMp4 = Join-Path $PSScriptRoot "outputs\$epId\final_9x16.mp4"
+        Write-Host ""
+        Write-Host "[VIDEO BARU SIAP] $finalMp4" -ForegroundColor Green
     }
 }
