@@ -10,7 +10,7 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("help", "ui", "list", "doctor", "credits", "login", "research", "preview", "render", "revoice", "open")]
+    [ValidateSet("help", "ui", "install-app", "list", "doctor", "credits", "login", "research", "preview", "render", "revoice", "open")]
     [string]$Action = "help",
 
     [Parameter(Position = 1)]
@@ -39,6 +39,7 @@ switch ($Action) {
         Write-Host ""
         Write-Host "=== Roblox-Meme-Flow (Cara Mudah) ===" -ForegroundColor Cyan
         Write-Host "  .\run.ps1 ui                         -> Buka Web UI Studio di browser (http://127.0.0.1:8787)"
+        Write-Host "  .\run.ps1 install-app                -> Install shortcut Desktop & Start Menu App"
         Write-Host "  .\run.ps1 list                       -> Lihat semua file episode"
         Write-Host "  .\run.ps1 credits                    -> Cek saldo kredit Google Flow"
         Write-Host "  .\run.ps1 research                   -> Riset tren viral Indonesia + buat prompt T3"
@@ -53,6 +54,9 @@ switch ($Action) {
         Write-Host "Membuka Roblox-Meme-Flow Studio di http://127.0.0.1:8787 ..." -ForegroundColor Cyan
         Start-Process "http://127.0.0.1:8787"
         & $Py -m roblox_meme_flow.cli ui --host 127.0.0.1 --port 8787
+    }
+    "install-app" {
+        & (Join-Path $PSScriptRoot "install_desktop_app.ps1")
     }
     "research" {
         & $Py -m roblox_meme_flow.cli research
