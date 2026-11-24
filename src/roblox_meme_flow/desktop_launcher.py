@@ -49,6 +49,27 @@ def _find_app_browser() -> str | None:
     return None
 
 
+def _app_browser_running(profile_marker: str) -> bool:
+    """Return True if any Chromium app-mode browser process using our profile is still running."""
+    try:
+        ps_cmd = (
+            "Get-CimInstance Win32_Process | "
+            f"Where-Object {{ $_.CommandLine -like '*{profile_marker}*' }} | "
+            "Measure-Object | Select-Object -ExpandProperty Count"
+        )
+        proc = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            check=False,
+        )
+        return int(proc.stdout.strip() or "0") > 0
+    except Exception:
+        return True
+
+
 def main() -> int:
     project_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(project_root)
@@ -81,7 +102,6 @@ def main() -> int:
             access_log=False,
         )
         server = uvicorn.Server(config)
-        # Prevent uvicorn from installing signal handlers in non-main thread
         server.install_signal_handlers = lambda: None  # type: ignore[method-assign]
         thread = threading.Thread(target=server.run, daemon=True)
         thread.start()
@@ -107,9 +127,13 @@ def main() -> int:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        # Wait until user closes the desktop app window, then cleanly stop local backend
         if started_here:
+            # Wait for initial process, then keep server alive while any window with our
+            # dedicated .studio_app_profile remains open (handles Brave/Chrome handoff).
             proc.wait()
+            time.sleep(2.0)
+            while _app_browser_running(".studio_app_profile"):
+                time.sleep(2.5)
             if server is not None:
                 server.should_exit = True
                 time.sleep(0.3)
@@ -118,7 +142,6 @@ def main() -> int:
 
         webbrowser.open(APP_URL)
         if started_here:
-            # Keep server alive until killed if no Chromium app-mode browser is found
             while True:
                 time.sleep(1.0)
 
