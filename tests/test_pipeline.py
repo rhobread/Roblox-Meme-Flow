@@ -11,12 +11,14 @@ from roblox_meme_flow.prompt_builder import (
 )
 from roblox_meme_flow.validator import has_errors, validate_episode
 
-SAMPLE_EPISODE = Path(__file__).resolve().parent.parent / "episodes" / "sample_ep01_kursi_kosong.yaml"
-SAMPLE_EPISODE_2 = Path(__file__).resolve().parent.parent / "episodes" / "sample_ep02_saldo_nyawa.yaml"
+EPISODES_DIR = Path(__file__).resolve().parent.parent / "episodes"
+SAMPLE_EPISODE = EPISODES_DIR / "sample_ep01_kursi_kosong.yaml"
 
 
-def test_sample_episodes_pass_validation() -> None:
-    for path in (SAMPLE_EPISODE, SAMPLE_EPISODE_2):
+def test_all_episodes_pass_validation() -> None:
+    episode_files = sorted(EPISODES_DIR.glob("*.yaml"))
+    assert len(episode_files) >= 5
+    for path in episode_files:
         ep = load_episode(path)
         issues = validate_episode(ep)
         assert not issues, f"Unexpected issues in {path.name}: {issues}"
@@ -54,12 +56,17 @@ def test_validator_warns_on_raw_trademark_in_visual() -> None:
     assert any(i.code == "TRADEMARK_IN_VISUAL" and i.severity == "warning" for i in issues)
 
 
-def test_gflow_manifest_defaults_to_zero_max_credits(tmp_path: Path) -> None:
+def test_gflow_manifest_defaults_to_zero_max_credits_and_strips_at(tmp_path: Path) -> None:
     ep = load_episode(SAMPLE_EPISODE)
     manifest = build_gflow_manifest(ep, tmp_path / ep.episode_id, spend=False)
     assert manifest["spend_enabled"] is False
     image_cmds = [c for c in manifest["commands"] if c["stage"] == "reference_image"]  # type: ignore[index]
     assert image_cmds[0]["args"][1:3] == ["image", "t2i"]
+    assert "@" not in str(image_cmds[0]["prompt"])
+    storyboard_cmd = [c for c in manifest["commands"] if c["stage"] == "storyboard"][0]  # type: ignore[index]
+    assert storyboard_cmd["args"][1:3] == ["image", "gen"]
+    assert "--ref" in storyboard_cmd["args"]
+    assert "@" not in str(storyboard_cmd["prompt"])
     video_cmds = [c for c in manifest["commands"] if c["stage"] == "video_scene"]  # type: ignore[index]
     assert len(video_cmds) == 4
     for cmd in video_cmds:
@@ -69,6 +76,7 @@ def test_gflow_manifest_defaults_to_zero_max_credits(tmp_path: Path) -> None:
         idx = args.index("--max-credits")
         assert args[idx + 1] == "0"
         assert "--ref" in args
+        assert "@" not in str(cmd["prompt"])
 
 
 def test_export_plan_and_srt_generation(tmp_path: Path) -> None:

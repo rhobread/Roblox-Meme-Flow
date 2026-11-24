@@ -78,13 +78,17 @@ def cmd_run_flow(args: argparse.Namespace) -> int:
         "images": {"reference_image", "storyboard"},
         "video": {"video_scene"},
     }
-    manifest_path = write_and_optionally_run_flow(
-        ep=ep,
-        out_dir=Path(args.out_dir),
-        spend=bool(args.spend),
-        execute=bool(args.execute),
-        stages=stage_map[args.stage],
-    )
+    try:
+        manifest_path = write_and_optionally_run_flow(
+            ep=ep,
+            out_dir=Path(args.out_dir),
+            spend=bool(args.spend),
+            execute=bool(args.execute),
+            stages=stage_map[args.stage],
+        )
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     mode = "LIVE SPEND" if args.spend else "DRY-RUN (--max-credits 0)"
     print(f"[{mode}] Manifest written to: {manifest_path}")
     return 0

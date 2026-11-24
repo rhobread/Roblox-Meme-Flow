@@ -1,0 +1,78 @@
+episode_id: "2026-11-24-viral02-noob-admin"
+title_id: "Di Dunia Ini, Avatar Noob Ternyata Admin Server"
+world_rule_id: "Di dunia ini, avatar paling sederhana di tongkrongan ternyata pemegang tombol gravitasi kota."
+aspect_ratio: "9:16"
+image_model: "nano-2.1"
+video_model: "omni-1.2-flash"
+tts_voice: "id-ID-ArdiNeural"
+tts_rate: "+14%"
+
+characters:
+  - handle: "@AdiNoob"
+    role: "Avatar sederhana baju polos yang diam-diam admin server"
+    visual_description: "Blocky 3D plastic toy avatar, classic bright yellow cylindrical head, simple spiky brown plastic hair, rectangular torso and limbs"
+    wardrobe: "plain bright blue blocky torso shirt, lime green blocky legs, no accessories"
+    expression_default: "calm blank default smile"
+  - handle: "@KevinSultan"
+    role: "Avatar mewah penuh efek neon yang sombong di kafe"
+    visual_description: "Blocky 3D plastic toy avatar, pale cylindrical head, glowing purple crystal crown, dark icy hair, rectangular torso and limbs"
+    wardrobe: "sparkling white designer trench coat with neon cyan trim, black boots"
+    expression_default: "arrogant raised-eyebrow sneer"
+
+locations:
+  - handle: "@KafeElitKota"
+    visual_description: "Trendy neon-lit Jakarta rooftop cafe built in vibrant blocky 3D plastic game architecture, marble tables, velvet rope VIP entrance, glowing city skyline behind, iced lattes on tables"
+    lighting: "sleek sunset magenta and cyan rooftop lighting"
+    key_props:
+      - "red velvet VIP barrier rope"
+      - "floating iced latte cups"
+      - "sleek glowing glass table"
+
+scenes:
+  - scene_number: 1
+    beat: "hook"
+    duration_seconds: 6
+    characters:
+      - "@AdiNoob"
+      - "@KevinSultan"
+    location: "@KafeElitKota"
+    narration_id: "Di dunia ini, kalau skin kamu masih gratisan, kamu dilarang duduk di kafe anak sultan."
+    visual_prompt: "At the red velvet entrance of @KafeElitKota, flashy @KevinSultan arrogantly blocks plain @AdiNoob with one hand and points laughingly at @AdiNoob's simple blue shirt, while @AdiNoob stands motionless with a calm blank plastic smile."
+    camera: "dramatic vertical over-the-shoulder shot emphasizing contrast between flashy @KevinSultan and plain @AdiNoob"
+    audio_sfx: "moody slowed synth intro, dismissive scoff pop"
+
+  - scene_number: 2
+    beat: "escalation"
+    duration_seconds: 6
+    characters:
+      - "@KevinSultan"
+      - "@AdiNoob"
+    location: "@KafeElitKota"
+    narration_id: "Kevin bilang, minggir bang, ini tempat orang berkelas bukan tempat avatar gratisan."
+    visual_prompt: "Inside @KafeElitKota, @KevinSultan lounges dramatically at the main marble table tossing his shiny crown slightly in smug laughter while @AdiNoob quietly steps back and pulls a tiny glowing golden wrench icon out of his pocket."
+    camera: "quick vertical cut from @KevinSultan laughing to tight close-up on @AdiNoob's blocky hand holding the glowing golden wrench"
+    audio_sfx: "smug laugh chime, deep ominous power-up hum"
+
+  - scene_number: 3
+    beat: "twist"
+    duration_seconds: 6
+    characters:
+      - "@AdiNoob"
+      - "@KevinSultan"
+    location: "@KafeElitKota"
+    narration_id: "Dia nggak sadar kalau avatar polos itu ternyata admin server yang lagi nyamar. Sekali klik, gravitasi kafe langsung dibalik."
+    visual_prompt: "At @KafeElitKota, @AdiNoob calmly taps the glowing golden wrench in mid-air; instantly purple gravity waves ripple outward and @KevinSultan, his velvet rope, marble table, and iced latte cups flip completely upside down floating helplessly toward the sunset sky."
+    camera: "dynamic vertical whip-tilt following @KevinSultan flipping upside down in zero gravity while @AdiNoob stays grounded"
+    audio_sfx: "heavy bass drop, sci-fi gravity invert boom, cartoon flailing whoosh"
+
+  - scene_number: 4
+    beat: "outro"
+    duration_seconds: 6
+    characters:
+      - "@AdiNoob"
+      - "@KevinSultan"
+    location: "@KafeElitKota"
+    narration_id: "Sekarang Kevin minum kopi sambil jungkir balik di awan. Menurut kamu pantes nggak? Tulis di komen."
+    visual_prompt: "At @KafeElitKota, @AdiNoob sits peacefully alone at the ground table sipping iced coffee with a tiny blank smile while @KevinSultan spins slowly upside down high in the background sky clinging to his shiny crown."
+    camera: "centered vertical hero shot of calm @AdiNoob in foreground with spinning @KevinSultan high behind"
+    audio_sfx: "calm iced coffee slurp, triumphant meme beat drop"

@@ -16,7 +16,27 @@ Daily short-form Indonesian meme video pipeline inspired by the **"In This World
 
 ---
 
-## Windows Quick Start
+## Cara Paling Mudah (1 Perintah via `run.ps1`)
+
+Buka PowerShell di `C:\Personal Projects\Roblox-Meme-Flow` lalu gunakan launcher `.\run.ps1`:
+
+```powershell
+# Lihat daftar semua script episode yang tersedia
+.\run.ps1 list
+
+# Cek saldo kredit Google Flow (0 kredit)
+.\run.ps1 credits
+
+# STEP 1 (0 kredit): Validasi + Gambar Referensi + Storyboard + Voiceover Bahasa Indonesia
+.\run.ps1 preview episodes\viral_ep01_utang_strobo.yaml
+
+# STEP 2 (memotong kredit video): Generate 4 klip video + gabung otomatis jadi final_9x16.mp4
+.\run.ps1 render episodes\viral_ep01_utang_strobo.yaml
+```
+
+---
+
+## Windows Quick Start (Manual CLI)
 
 ```powershell
 cd "C:\Personal Projects\Roblox-Meme-Flow"
@@ -55,7 +75,7 @@ Then authenticate your local Google Flow session once and verify credits:
 ```powershell
 .\.venv\Scripts\gflow.exe auth login
 .\.venv\Scripts\gflow.exe auth status
-.\.venv\Scripts\gflow.exe credits
+.\.venv\Scripts\gflow.exe credits user
 ```
 > **Note:** `gflow-cli` (`v0.105.1`) only supports **Playwright internal Chromium** (`--browser internal`, used automatically when Google Chrome is absent) or **Google Chrome** (`--browser chrome`). Brave/Edge are not natively supported by `gflow auth login`. If Google blocks sign-in in internal Chromium, install Google Chrome and re-run `gflow auth login --browser chrome`.
 
