@@ -339,7 +339,7 @@ def write_and_optionally_run_flow(
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
         step_timeout = STAGE_TIMEOUTS_SECONDS.get(stage, 180.0)
-        max_step_attempts = 2 if stage in {"video_scene", "reference_image"} else 1
+        max_step_attempts = 3 if stage in {"video_scene", "reference_image"} else 1
         record: dict[str, object] = {}
 
         for attempt in range(1, max_step_attempts + 1):
