@@ -9,7 +9,7 @@ description = "Daily Indonesian 'Di Dunia Ini' blocky-avatar meme video pipeline
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "gflow-cli",
+    "gflow-cli>=0.106.0",
     "pydantic>=2.7",
     "pyyaml>=6.0",
     "edge-tts>=6.1",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -94,18 +95,54 @@ def _synthesize_edge_tts_with_retry(
     )
 
 
-def _fit_scene_audio(
+INLINE_SFX_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"\bhus[\s,!-]+hus[\s,!-]+hus\b[!.,?]*", re.IGNORECASE), "assets/sfx/hus_hus_hus.wav"),
+]
+
+
+def _find_sfx_asset(rel_path: str) -> Path | None:
+    cand = Path(rel_path)
+    if cand.exists():
+        return cand
+    pkg_root = Path(__file__).resolve().parent.parent.parent
+    alt = pkg_root / rel_path
+    if alt.exists():
+        return alt
+    return None
+
+
+def split_narration_with_sfx(text: str) -> list[tuple[str, str]]:
+    """Split narration into ('tts', text) and ('sfx', wav_path) segments for authentic meme soundbites."""
+    segments: list[tuple[str, str]] = [("tts", text)]
+    for pattern, rel_asset in INLINE_SFX_RULES:
+        asset_path = _find_sfx_asset(rel_asset)
+        if asset_path is None:
+            continue
+        next_segments: list[tuple[str, str]] = []
+        for kind, val in segments:
+            if kind != "tts":
+                next_segments.append((kind, val))
+                continue
+            pos = 0
+            for m in pattern.finditer(val):
+                before = val[pos : m.start()].strip(" ,;")
+                if before:
+                    next_segments.append(("tts", before))
+                next_segments.append(("sfx", str(asset_path)))
+                pos = m.end()
+            after = val[pos:].strip(" ,;")
+            if after:
+                next_segments.append(("tts", after))
+        segments = next_segments
+    return segments
+
+
+def _process_tts_to_trimmed_wav(
     ffmpeg: str,
     raw_mp3: Path,
-    max_seconds: float,
-    out_wav: Path,
+    trimmed_wav: Path,
     pitch_shift: float = 1.0,
-    fast_cut_sync: bool = True,
-    gap_seconds: float = 0.10,
-) -> float:
-    """Process scene VO: strip dead pauses, apply meme pitch shift, return exact final duration."""
-    # Pass 1: apply comedic pitch shift + vocal pop + trim dead silences (>0.12s)
-    trimmed_wav = out_wav.with_name(out_wav.stem + "_trim.wav")
+) -> None:
     pre_filters: list[str] = []
     if abs(pitch_shift - 1.0) > 0.005:
         shifted_rate = int(round(44100 * pitch_shift))
@@ -116,7 +153,6 @@ def _fit_scene_audio(
 
     pre_filters.append("highpass=f=120")
     pre_filters.append("acompressor=threshold=-16dB:ratio=3:attack=5:release=60")
-    # Strip leading silence and tighten long internal/trailing pauses so narration flows nonstop
     pre_filters.append(
         "silenceremove=start_periods=1:start_duration=0:start_threshold=-42dB:"
         "stop_periods=-1:stop_duration=0.12:stop_threshold=-42dB"
@@ -144,10 +180,17 @@ def _fit_scene_audio(
     if proc1.returncode != 0:
         raise RuntimeError(f"ffmpeg failed trimming scene audio: {proc1.stderr[-1000:]}")
 
+
+def _fit_trimmed_wav_to_budget(
+    ffmpeg: str,
+    trimmed_wav: Path,
+    max_seconds: float,
+    out_wav: Path,
+    fast_cut_sync: bool = True,
+    gap_seconds: float = 0.10,
+) -> float:
     spoken_s = _probe_duration_seconds(ffmpeg, trimmed_wav) or max_seconds
 
-    # Pass 2: if fast_cut_sync is enabled, cut tightly to spoken_s + tiny breath gap (<= max_seconds)
-    # so there are ZERO awkward silent pauses between scenes.
     post_filters: list[str] = []
     if spoken_s > max_seconds - 0.08:
         speed = min(spoken_s / max(max_seconds - 0.08, 0.8), 1.65)
@@ -180,11 +223,144 @@ def _fit_scene_audio(
         check=False,
         **silent_subprocess_kwargs(),
     )
-    trimmed_wav.unlink(missing_ok=True)
     if proc2.returncode != 0:
         raise RuntimeError(f"ffmpeg failed fitting scene audio: {proc2.stderr[-1000:]}")
 
     return round(final_dur, 3)
+
+
+def _fit_scene_audio(
+    ffmpeg: str,
+    raw_mp3: Path,
+    max_seconds: float,
+    out_wav: Path,
+    pitch_shift: float = 1.0,
+    fast_cut_sync: bool = True,
+    gap_seconds: float = 0.10,
+) -> float:
+    """Process scene VO: strip dead pauses, apply meme pitch shift, return exact final duration."""
+    trimmed_wav = out_wav.with_name(out_wav.stem + "_trim.wav")
+    _process_tts_to_trimmed_wav(ffmpeg, raw_mp3, trimmed_wav, pitch_shift=pitch_shift)
+    try:
+        return _fit_trimmed_wav_to_budget(
+            ffmpeg,
+            trimmed_wav,
+            max_seconds,
+            out_wav,
+            fast_cut_sync=fast_cut_sync,
+            gap_seconds=gap_seconds,
+        )
+    finally:
+        trimmed_wav.unlink(missing_ok=True)
+
+
+def _synthesize_scene_with_inline_sfx(
+    ffmpeg: str,
+    narration: str,
+    voice: str,
+    rate: str,
+    pitch: str,
+    pitch_shift: float,
+    max_seconds: float,
+    vo_dir: Path,
+    scene_number: int,
+    out_wav: Path,
+    fast_cut_sync: bool = True,
+    gap_seconds: float = 0.10,
+) -> float:
+    segments = split_narration_with_sfx(narration)
+    has_sfx = any(kind == "sfx" for kind, _ in segments)
+    if not has_sfx:
+        raw_scene_mp3 = vo_dir / f"scene_{scene_number:02d}_raw.mp3"
+        _synthesize_edge_tts_with_retry(narration, voice, rate, pitch, raw_scene_mp3)
+        return _fit_scene_audio(
+            ffmpeg,
+            raw_scene_mp3,
+            max_seconds,
+            out_wav,
+            pitch_shift=pitch_shift,
+            fast_cut_sync=fast_cut_sync,
+            gap_seconds=gap_seconds,
+        )
+
+    part_wavs: list[Path] = []
+    temp_files: list[Path] = []
+    try:
+        for p_idx, (kind, payload) in enumerate(segments, start=1):
+            part_wav = vo_dir / f"scene_{scene_number:02d}_p{p_idx:02d}.wav"
+            temp_files.append(part_wav)
+            if kind == "tts":
+                raw_part = vo_dir / f"scene_{scene_number:02d}_p{p_idx:02d}_raw.mp3"
+                temp_files.append(raw_part)
+                _synthesize_edge_tts_with_retry(payload, voice, rate, pitch, raw_part)
+                _process_tts_to_trimmed_wav(ffmpeg, raw_part, part_wav, pitch_shift=pitch_shift)
+            else:
+                # Preserve exact meme SFX tone (no pitch shift), normalize to 44.1kHz stereo & punchy loudness
+                proc_sfx = subprocess.run(
+                    [
+                        ffmpeg,
+                        "-y",
+                        "-i",
+                        payload,
+                        "-af",
+                        "volume=1.20,acompressor=threshold=-16dB:ratio=2.5:attack=5:release=50",
+                        "-ar",
+                        "44100",
+                        "-ac",
+                        "2",
+                        str(part_wav),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    **silent_subprocess_kwargs(),
+                )
+                if proc_sfx.returncode != 0:
+                    raise RuntimeError(f"ffmpeg failed preparing inline SFX: {proc_sfx.stderr[-800:]}")
+            part_wavs.append(part_wav)
+
+        merged_wav = vo_dir / f"scene_{scene_number:02d}_merged.wav"
+        concat_list = vo_dir / f"scene_{scene_number:02d}_parts.txt"
+        temp_files.extend([merged_wav, concat_list])
+        concat_list.write_text(
+            "\n".join(f"file '{w.resolve().as_posix()}'" for w in part_wavs) + "\n",
+            encoding="utf-8",
+        )
+        proc_cat = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_list),
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                str(merged_wav),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            **silent_subprocess_kwargs(),
+        )
+        if proc_cat.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed merging inline SFX parts: {proc_cat.stderr[-800:]}")
+
+        return _fit_trimmed_wav_to_budget(
+            ffmpeg,
+            merged_wav,
+            max_seconds,
+            out_wav,
+            fast_cut_sync=fast_cut_sync,
+            gap_seconds=gap_seconds,
+        )
+    finally:
+        for tf in temp_files:
+            tf.unlink(missing_ok=True)
 
 
 def generate_voiceover_and_srt(
@@ -213,21 +389,18 @@ def generate_voiceover_and_srt(
     for idx, scene in enumerate(ep.scenes, start=1):
         if log_callback:
             log_callback(f"      Suara narator scene {idx}/{total_scenes}...")
-        raw_scene_mp3 = vo_dir / f"scene_{scene.scene_number:02d}_raw.mp3"
         fitted_wav = vo_dir / f"scene_{scene.scene_number:02d}_fit.wav"
-        _synthesize_edge_tts_with_retry(
-            scene.narration_id.strip(),
-            ep.tts_voice,
-            ep.tts_rate,
-            ep.tts_pitch,
-            raw_scene_mp3,
-        )
-        actual_dur = _fit_scene_audio(
-            ffmpeg,
-            raw_scene_mp3,
-            float(scene.duration_seconds),
-            fitted_wav,
+        actual_dur = _synthesize_scene_with_inline_sfx(
+            ffmpeg=ffmpeg,
+            narration=scene.narration_id.strip(),
+            voice=ep.tts_voice,
+            rate=ep.tts_rate,
+            pitch=ep.tts_pitch,
             pitch_shift=ep.tts_pitch_shift,
+            max_seconds=float(scene.duration_seconds),
+            vo_dir=vo_dir,
+            scene_number=scene.scene_number,
+            out_wav=fitted_wav,
             fast_cut_sync=ep.fast_cut_sync,
             gap_seconds=ep.scene_gap_seconds,
         )

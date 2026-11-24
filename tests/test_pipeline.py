@@ -529,6 +529,22 @@ def test_studio_profile_browser_cleanup_matcher_never_matches_personal_browser(t
     assert is_studio_profile_cmdline(personal_cmd, prof) is False
 
 
+def test_inline_sfx_split_replaces_hus_hus_hus_when_asset_exists(monkeypatch, tmp_path: Path) -> None:
+    from roblox_meme_flow import audio_video
+
+    fake_wav = tmp_path / "hus_hus_hus.wav"
+    fake_wav.write_bytes(b"RIFF" + b"\x00" * 64)
+    monkeypatch.setattr(audio_video, "_find_sfx_asset", lambda _rel: fake_wav)
+
+    segs = audio_video.split_narration_with_sfx("Dimas teriak hus hus hus! Bos langsung terbang!")
+    assert segs == [
+        ("tts", "Dimas teriak"),
+        ("sfx", str(fake_wav)),
+        ("tts", "Bos langsung terbang!"),
+    ]
+
+
+
 
 
 

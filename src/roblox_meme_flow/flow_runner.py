@@ -234,7 +234,7 @@ def get_live_flow_credits() -> int | None:
 STAGE_TIMEOUTS_SECONDS: dict[str, float] = {
     "reference_image": 150.0,
     "storyboard": 180.0,
-    "video_scene": 240.0,
+    "video_scene": 300.0,
 }
 
 
@@ -339,29 +339,46 @@ def write_and_optionally_run_flow(
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
         step_timeout = STAGE_TIMEOUTS_SECONDS.get(stage, 180.0)
-        _emit(f"-> ({idx}/{total_steps}) Menjalankan [{stage}] {target} (maks {int(step_timeout)} detik)...")
-        try:
-            with _GFLOW_PROFILE_LOCK:
-                proc = run_silent_gflow_subprocess(
-                    run_args,
-                    env=_silent_gflow_env(),
-                    timeout=step_timeout,
-                )
-            record = {
-                "stage": stage,
-                "target": target,
-                "returncode": proc.returncode,
-                "stdout": proc.stdout[-4000:],
-                "stderr": proc.stderr[-2000:],
-            }
-        except subprocess.TimeoutExpired:
-            record = {
-                "stage": stage,
-                "target": target,
-                "returncode": 124,
-                "stdout": "",
-                "stderr": f"Timeout setelah {int(step_timeout)} detik menunggu respons Google Flow.",
-            }
+        max_step_attempts = 2 if stage in {"video_scene", "reference_image"} else 1
+        record: dict[str, object] = {}
+
+        for attempt in range(1, max_step_attempts + 1):
+            if cancel_event is not None and cancel_event.is_set():
+                raise RuntimeError("Proses dibatalkan oleh pengguna.")
+            suffix = f" (percobaan ulang {attempt}/{max_step_attempts})" if attempt > 1 else ""
+            _emit(f"-> ({idx}/{total_steps}) Menjalankan [{stage}] {target} (maks {int(step_timeout)} detik){suffix}...")
+            try:
+                with _GFLOW_PROFILE_LOCK:
+                    proc = run_silent_gflow_subprocess(
+                        run_args,
+                        env=_silent_gflow_env(),
+                        timeout=step_timeout,
+                    )
+                record = {
+                    "stage": stage,
+                    "target": target,
+                    "returncode": proc.returncode,
+                    "stdout": proc.stdout[-4000:],
+                    "stderr": proc.stderr[-2000:],
+                }
+            except subprocess.TimeoutExpired:
+                record = {
+                    "stage": stage,
+                    "target": target,
+                    "returncode": 124,
+                    "stdout": "",
+                    "stderr": f"Timeout setelah {int(step_timeout)} detik menunggu respons Google Flow.",
+                }
+
+            if record["returncode"] == 0:
+                break
+            # Safely retry ONLY uncharged transient UI hiccups (exit 23 = UiSelectorDriftError with charged=no)
+            combined = f"{record.get('stdout', '')} {record.get('stderr', '')}".lower()
+            is_uncharged_ui_glitch = record["returncode"] == 23 and '"charged": "no"' in combined
+            if is_uncharged_ui_glitch and attempt < max_step_attempts:
+                _emit(f"   [RETRY] UI Google Flow sempat lambat (0 kredit terpotong), mengulang [{stage}] {target}...")
+                continue
+            break
 
         results.append(record)
         if record["returncode"] != 0:
