@@ -50,6 +50,7 @@ class JobState:
     logs: list[str] = field(default_factory=list)
     result: dict[str, object] | None = None
     error: str | None = None
+    cancel_event: threading.Event = field(default_factory=threading.Event)
 
     def append(self, message: str) -> None:
         self.logs.append(message)
@@ -167,7 +168,20 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     app.state.lifecycle_snapshot = _lifecycle_snapshot
     app.state.has_running_jobs = _has_running_jobs
 
+    def _ensure_no_conflict_flow_job(kind: str) -> None:
+        if kind not in {"preview", "render", "revoice"}:
+            return
+        with jobs_lock:
+            active = [j for j in jobs.values() if j.status == "running" and j.kind in {"preview", "render", "revoice"}]
+        if active:
+            cur = active[0]
+            raise HTTPException(
+                status_code=409,
+                detail=f"Masih ada proses '{cur.kind}' yang sedang berjalan. Tunggu sampai selesai atau klik Batalkan dulu.",
+            )
+
     def _start_job(kind: str, fn) -> str:
+        _ensure_no_conflict_flow_job(kind)
         job_id = uuid.uuid4().hex[:10]
         state = JobState(job_id=job_id, kind=kind)
         with jobs_lock:
@@ -545,6 +559,8 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 spend=False,
                 execute=True,
                 stages={"reference_image", "storyboard"},
+                optional_stages={"storyboard"},
+                cancel_event=job.cancel_event,
                 log_callback=job.append,
             )
             job.append("[SELESAI - 0 KREDIT] Preview siap dicek!")
@@ -572,6 +588,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                     spend=False,
                     execute=True,
                     stages={"reference_image"},
+                    cancel_event=job.cancel_event,
                     log_callback=job.append,
                 )
             job.append("[1/3] Memeriksa limit kredit harian & menjalankan Google Flow Video...")
@@ -582,6 +599,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 execute=True,
                 stages={"video_scene"},
                 override_limit=payload.override_limit,
+                cancel_event=job.cancel_event,
                 log_callback=job.append,
             )
             if not (layout.audio_dir / "voiceover.mp3").exists():
@@ -652,6 +670,19 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             "result": state.result,
             "error": state.error,
         }
+
+    @app.post("/api/jobs/{job_id}/cancel")
+    def api_job_cancel(job_id: str) -> dict[str, object]:
+        with jobs_lock:
+            state = jobs.get(job_id)
+        if not state:
+            raise HTTPException(status_code=404, detail="Job tidak ditemukan")
+        if state.status == "running":
+            state.cancel_event.set()
+            state.append("[DIBATALKAN] Permintaan batal dikirim...")
+            state.status = "error"
+            state.error = "Proses dibatalkan oleh pengguna."
+        return {"ok": True, "job_id": state.job_id, "status": state.status}
 
     @app.post("/api/episodes/{filename}/open-folder")
     def api_open_folder(filename: str) -> dict[str, object]:

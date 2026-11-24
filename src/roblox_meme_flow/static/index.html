@@ -510,9 +510,13 @@
       <div class="stage">
         <!-- LIVE JOB PROGRESS BANNER (only visible while running / error) -->
         <div id="jobBanner" class="progress-banner">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
             <strong id="jobTitle">Sedang memproses...</strong>
-            <button class="ghost" style="padding:3px 8px;font-size:11px;" onclick="hideJobBanner()">Tutup</button>
+            <div class="btn-row" style="gap:6px;">
+              <span id="jobElapsed" class="pill" style="display:none;font-size:11px;padding:2px 8px;">⏱️ 00:00</span>
+              <button id="btnCancelJob" class="danger" style="display:none;padding:3px 9px;font-size:11px;" onclick="cancelActiveJob()">⏹️ Batalkan</button>
+              <button class="ghost" style="padding:3px 8px;font-size:11px;" onclick="hideJobBanner()">Tutup</button>
+            </div>
           </div>
           <div id="jobProgressBar" class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
           <div id="jobLogMini" class="log-mini"></div>
@@ -575,7 +579,7 @@
         <div class="card">
           <div class="card-header">
             <h3 class="card-title">📺 Preview Video, Storyboard &amp; Audio</h3>
-            <button onclick="runRevoice()">🎵 Terapkan Suara &amp; BGM (0 Kredit)</button>
+            <button id="btnRevoice" onclick="runRevoice()">🎵 Terapkan Suara &amp; BGM (0 Kredit)</button>
           </div>
 
           <div class="showcase">
@@ -1036,6 +1040,8 @@
         phone.innerHTML = `<video controls src="${assets.final_video_url}?t=${ts}"></video>`;
       } else if (assets.storyboard_url) {
         phone.innerHTML = `<img src="${assets.storyboard_url}?t=${ts}" alt="Storyboard" />`;
+      } else if (assets.refs && assets.refs.length) {
+        phone.innerHTML = `<img src="${assets.refs[0].url}?t=${ts}" alt="Preview Karakter" />`;
       } else {
         phone.innerHTML = `<div class="phone-empty">Belum ada gambar atau video.<br/>Klik <strong>Buat Preview Gratis (0 Kredit)</strong> di atas.</div>`;
       }
@@ -1202,10 +1208,54 @@
       document.getElementById("createJobBanner").classList.remove("active");
     }
 
+    let activeJobId = null;
+    let pollGen = 0;
+    let elapsedTimer = null;
+
+    function setStudioButtonsDisabled(disabled) {
+      for (const id of ["btnPrimaryPreview", "btnPrimaryRender", "btnRevoice"]) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = disabled;
+      }
+    }
+
+    function stopTimers() {
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+    }
+
+    async function cancelActiveJob() {
+      if (!activeJobId) return;
+      const jid = activeJobId;
+      try {
+        await api(`/api/jobs/${jid}/cancel`, { method: "POST" });
+        showToast("Proses dibatalkan.", "err");
+      } catch (err) {
+        showToast("Gagal batal: " + err.message, "err");
+      } finally {
+        pollGen++;
+        stopTimers();
+        activeJobId = null;
+        setStudioButtonsDisabled(false);
+        const cancelBtn = document.getElementById("btnCancelJob");
+        const elap = document.getElementById("jobElapsed");
+        if (cancelBtn) cancelBtn.style.display = "none";
+        if (elap) elap.style.display = "none";
+        showJobBanner("⏹️ Proses dibatalkan oleh pengguna.", true);
+      }
+    }
+
     function pollJob(jobId, label, onDone, opts = {}) {
-      if (pollTimer) clearInterval(pollTimer);
+      pollGen++;
+      const myGen = pollGen;
+      stopTimers();
+      activeJobId = jobId;
+
       const inCreateTab = opts.target === "create";
-      if (!inCreateTab) switchTab("studio");
+      if (!inCreateTab) {
+        switchTab("studio");
+        setStudioButtonsDisabled(true);
+      }
 
       const setBanner = (title, isErr = false) => {
         if (inCreateTab) showCreateJobBanner(title, isErr);
@@ -1214,34 +1264,69 @@
       const logEl = document.getElementById(inCreateTab ? "createJobLog" : "jobLogMini");
       const barEl = document.getElementById(inCreateTab ? "createJobProgressBar" : "jobProgressBar");
       const titleEl = document.getElementById(inCreateTab ? "createJobTitle" : "jobTitle");
+      const cancelBtn = document.getElementById("btnCancelJob");
+      const elapEl = document.getElementById("jobElapsed");
 
       setBanner(label, false);
       logEl.textContent = "Memulai proses...";
 
-      pollTimer = setInterval(async () => {
+      const startedAt = Date.now();
+      if (!inCreateTab) {
+        if (cancelBtn) cancelBtn.style.display = "inline-flex";
+        if (elapEl) {
+          elapEl.style.display = "inline-flex";
+          elapEl.textContent = "⏱️ 00:00";
+          elapsedTimer = setInterval(() => {
+            const sec = Math.floor((Date.now() - startedAt) / 1000);
+            const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+            const ss = String(sec % 60).padStart(2, "0");
+            elapEl.textContent = `⏱️ ${mm}:${ss}`;
+          }, 1000);
+        }
+      }
+
+      const finishUi = () => {
+        stopTimers();
+        if (activeJobId === jobId) activeJobId = null;
+        if (!inCreateTab) {
+          setStudioButtonsDisabled(false);
+          if (cancelBtn) cancelBtn.style.display = "none";
+          if (elapEl) elapEl.style.display = "none";
+        }
+        if (opts.onFinish) opts.onFinish();
+      };
+
+      const tick = async () => {
+        if (myGen !== pollGen) return;
         try {
           const st = await api(`/api/jobs/${jobId}`);
+          if (myGen !== pollGen) return;
           logEl.textContent = (st.logs || []).join("\n");
           logEl.scrollTop = logEl.scrollHeight;
           if (st.status !== "running") {
-            clearInterval(pollTimer);
-            if (opts.onFinish) opts.onFinish();
+            finishUi();
             if (st.status === "done") {
               barEl.style.display = "none";
               titleEl.textContent = "✅ " + label + " selesai!";
               showToast(label + " selesai!", "ok");
-              if (onDone) await onDone(st);
+              if (onDone) {
+                try { await onDone(st); } catch (cbErr) { console.error(cbErr); }
+              }
             } else {
               setBanner("❌ Gagal: " + (st.error || "Terjadi error"), true);
               showToast("Proses gagal — lihat detail di kotak merah.", "err");
             }
+            return;
           }
+          pollTimer = setTimeout(tick, 1500);
         } catch (err) {
-          clearInterval(pollTimer);
-          if (opts.onFinish) opts.onFinish();
+          if (myGen !== pollGen) return;
+          finishUi();
           setBanner("❌ Error koneksi: " + err.message, true);
         }
-      }, 1500);
+      };
+
+      pollTimer = setTimeout(tick, 800);
     }
 
     function escapeHtml(str) {
@@ -1487,30 +1572,42 @@
 
     async function runPreview() {
       if (!currentFilename) return;
-      const res = await api("/api/jobs/preview", { method: "POST", body: JSON.stringify(audioPayload()) });
-      pollJob(res.job_id, "Membuat Preview Gratis (Gambar + Storyboard + VO)", async () => {
-        await loadEpisodes();
-        await selectEpisode(currentFilename);
-      });
+      try {
+        const res = await api("/api/jobs/preview", { method: "POST", body: JSON.stringify(audioPayload()) });
+        pollJob(res.job_id, "Membuat Preview Gratis (Gambar + Storyboard + VO)", async () => {
+          await loadEpisodes();
+          await selectEpisode(currentFilename);
+        });
+      } catch (err) {
+        showToast(err.message, "err");
+      }
     }
 
     async function runRender() {
       if (!currentFilename) return;
-      const res = await api("/api/jobs/render", { method: "POST", body: JSON.stringify(audioPayload()) });
-      pollJob(res.job_id, "Merender Video di Google Flow + Mixing BGM", async () => {
-        await loadStatus(true);
-        await loadEpisodes();
-        await selectEpisode(currentFilename);
-      });
+      try {
+        const res = await api("/api/jobs/render", { method: "POST", body: JSON.stringify(audioPayload()) });
+        pollJob(res.job_id, "Merender Video di Google Flow + Mixing BGM", async () => {
+          await loadStatus(true);
+          await loadEpisodes();
+          await selectEpisode(currentFilename);
+        });
+      } catch (err) {
+        showToast(err.message, "err");
+      }
     }
 
     async function runRevoice() {
       if (!currentFilename) return;
-      const res = await api("/api/jobs/revoice", { method: "POST", body: JSON.stringify(audioPayload()) });
-      pollJob(res.job_id, "Menerapkan Suara & BGM Baru (0 Kredit)", async () => {
-        await loadEpisodes();
-        await selectEpisode(currentFilename);
-      });
+      try {
+        const res = await api("/api/jobs/revoice", { method: "POST", body: JSON.stringify(audioPayload()) });
+        pollJob(res.job_id, "Menerapkan Suara & BGM Baru (0 Kredit)", async () => {
+          await loadEpisodes();
+          await selectEpisode(currentFilename);
+        });
+      } catch (err) {
+        showToast(err.message, "err");
+      }
     }
 
     async function openFolder() {

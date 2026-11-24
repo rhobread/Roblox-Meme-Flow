@@ -105,7 +105,7 @@ def build_gflow_manifest(
         str(storyboard_out),
         "--json",
     ]
-    for ref_path in ref_files.values():
+    for ref_path in list(ref_files.values())[:4]:
         storyboard_args.extend(["--ref", str(ref_path)])
 
     commands.append(
@@ -118,10 +118,18 @@ def build_gflow_manifest(
         }
     )
 
-    model_ref_cap = 3 if ep.video_model.strip().lower().startswith("veo-") else 7
+    is_veo_model = ep.video_model.strip().lower().startswith("veo-")
+    model_ref_cap = 3 if is_veo_model else 7
     for scene in scenes:
         clip_out = layout.clips_dir / f"scene_{scene['scene_number']:02d}.mp4"
         wire_scene = strip_at_handles_for_gflow(str(scene["prompt"]))
+        ref_args: list[str] = []
+        added_refs = 0
+        for ref_handle in scene["references"]:  # type: ignore[union-attr]
+            if ref_handle in ref_files and added_refs < model_ref_cap:
+                ref_args.extend(["--ref", str(ref_files[ref_handle])])
+                added_refs += 1
+
         args = [
             gflow_bin,
             "video",
@@ -131,17 +139,20 @@ def build_gflow_manifest(
             ep.video_model,
             "--aspect",
             ep.aspect_ratio,
-            "--duration",
-            str(scene["duration_seconds"]),
-            "--out-file",
-            str(clip_out),
-            "--json",
         ]
-        added_refs = 0
-        for ref_handle in scene["references"]:  # type: ignore[union-attr]
-            if ref_handle in ref_files and added_refs < model_ref_cap:
-                args.extend(["--ref", str(ref_files[ref_handle])])
-                added_refs += 1
+        # Google Flow pins Veo R2V (--ref) clips to 8s and rejects --duration 4/6 with exit 11.
+        # Omit --duration on Veo R2V so gflow pins 8s cleanly (flat 10 cr on veo-lite; fast_cut_sync trims to VO).
+        if not (is_veo_model and added_refs > 0):
+            args.extend(["--duration", str(scene["duration_seconds"])])
+
+        args.extend(
+            [
+                "--out-file",
+                str(clip_out),
+                "--json",
+                *ref_args,
+            ]
+        )
 
         if not spend:
             args.extend(["--max-credits", "0"])
@@ -220,6 +231,13 @@ def get_live_flow_credits() -> int | None:
     return None
 
 
+STAGE_TIMEOUTS_SECONDS: dict[str, float] = {
+    "reference_image": 150.0,
+    "storyboard": 180.0,
+    "video_scene": 240.0,
+}
+
+
 def write_and_optionally_run_flow(
     ep: EpisodeSpec,
     out_dir: Path,
@@ -228,6 +246,8 @@ def write_and_optionally_run_flow(
     stages: set[str] | None = None,
     override_limit: bool = False,
     log_callback=None,
+    optional_stages: set[str] | None = None,
+    cancel_event: threading.Event | None = None,
 ) -> Path:
     def _emit(msg: str) -> None:
         print(msg, flush=True)
@@ -273,41 +293,84 @@ def write_and_optionally_run_flow(
             "gflow executable not found. Install dependencies inside .venv with `pip install -e .`."
         )
 
+    opt_stages = optional_stages or set()
+    selected_steps = [
+        step for step in manifest["commands"] if not stages or step["stage"] in stages  # type: ignore[index]
+    ]
+    total_steps = len(selected_steps)
+
     results = []
     failed_step: dict[str, object] | None = None
-    for step in manifest["commands"]:  # type: ignore[index]
-        if stages and step["stage"] not in stages:
-            continue
-        existing = _resolve_existing_media(Path(str(step["output_hint"])))
-        if existing is not None and step["stage"] == "reference_image":
-            _emit(f"-> Skipping existing [{step['stage']}] {step['target']} ({existing.name})")
+    for idx, step in enumerate(selected_steps, start=1):
+        if cancel_event is not None and cancel_event.is_set():
+            raise RuntimeError("Proses dibatalkan oleh pengguna.")
+
+        stage = str(step["stage"])
+        target = str(step["target"])
+        out_hint = Path(str(step["output_hint"]))
+
+        # Skip existing valid references AND existing valid rendered clips (never double-spend credits!)
+        if stage == "reference_image":
+            existing = _resolve_existing_media(out_hint)
+            if existing is not None and existing.stat().st_size > 1000:
+                _emit(f"-> ({idx}/{total_steps}) Sudah ada [{stage}] {target} ({existing.name}) - dilewati")
+                results.append(
+                    {
+                        "stage": stage,
+                        "target": target,
+                        "returncode": 0,
+                        "skipped": True,
+                        "existing_file": str(existing),
+                    }
+                )
+                continue
+        elif stage == "video_scene" and out_hint.exists() and out_hint.stat().st_size > 10_000:
+            _emit(f"-> ({idx}/{total_steps}) Klip sudah ada [{stage}] {target} ({out_hint.name}) - hemat kredit!")
             results.append(
                 {
-                    "stage": step["stage"],
-                    "target": step["target"],
+                    "stage": stage,
+                    "target": target,
                     "returncode": 0,
                     "skipped": True,
-                    "existing_file": str(existing),
+                    "existing_file": str(out_hint),
                 }
             )
             continue
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
-        _emit(f"-> Running [{step['stage']}] {step['target']} (background)...")
-        with _GFLOW_PROFILE_LOCK:
-            proc = run_silent_gflow_subprocess(
-                run_args,
-                env=_silent_gflow_env(),
-            )
-        record = {
-            "stage": step["stage"],
-            "target": step["target"],
-            "returncode": proc.returncode,
-            "stdout": proc.stdout[-4000:],
-            "stderr": proc.stderr[-2000:],
-        }
+        step_timeout = STAGE_TIMEOUTS_SECONDS.get(stage, 180.0)
+        _emit(f"-> ({idx}/{total_steps}) Menjalankan [{stage}] {target} (maks {int(step_timeout)} detik)...")
+        try:
+            with _GFLOW_PROFILE_LOCK:
+                proc = run_silent_gflow_subprocess(
+                    run_args,
+                    env=_silent_gflow_env(),
+                    timeout=step_timeout,
+                )
+            record = {
+                "stage": stage,
+                "target": target,
+                "returncode": proc.returncode,
+                "stdout": proc.stdout[-4000:],
+                "stderr": proc.stderr[-2000:],
+            }
+        except subprocess.TimeoutExpired:
+            record = {
+                "stage": stage,
+                "target": target,
+                "returncode": 124,
+                "stdout": "",
+                "stderr": f"Timeout setelah {int(step_timeout)} detik menunggu respons Google Flow.",
+            }
+
         results.append(record)
-        if proc.returncode != 0:
+        if record["returncode"] != 0:
+            if stage in opt_stages:
+                _emit(
+                    f"[INFO] Tahap opsional [{stage}] melewati batas waktu / gagal — "
+                    "tetapi gambar referensi & suara narator sudah siap dipakai."
+                )
+                continue
             failed_step = record
             break
 

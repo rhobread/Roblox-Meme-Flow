@@ -485,5 +485,41 @@ def test_edge_tts_retry_recovers_from_transient_zero_byte_failure(monkeypatch, t
     assert out.exists() and out.stat().st_size > 128
 
 
+def test_veo_lite_r2v_omits_duration_and_caps_storyboard_refs(tmp_path: Path) -> None:
+    ep = load_episode(EPISODES_DIR / "viral_ep04_wifi_tetangga_fast.yaml")
+    assert ep.video_model == "veo-lite"
+    manifest = build_gflow_manifest(ep, tmp_path / ep.episode_id, spend=True, max_credits_per_clip=10)
+    video_cmds = [c for c in manifest["commands"] if c["stage"] == "video_scene"]  # type: ignore[index]
+    assert len(video_cmds) == 8
+    for cmd in video_cmds:
+        args = cmd["args"]
+        assert "--ref" in args
+        # Veo R2V MUST omit --duration so Google Flow pins 8s cleanly without exit 11
+        assert "--duration" not in args
+        assert "--max-credits" in args and args[args.index("--max-credits") + 1] == "10"
+
+    # Omni model with --ref keeps --duration
+    omni_ep = load_episode(KIDS_EPISODE)
+    omni_manifest = build_gflow_manifest(omni_ep, tmp_path / omni_ep.episode_id, spend=False)
+    omni_videos = [c for c in omni_manifest["commands"] if c["stage"] == "video_scene"]  # type: ignore[index]
+    assert "--duration" in omni_videos[0]["args"]
+
+    # Storyboard caps --ref uploads to at most 4 even when episode has >4 total refs
+    big_ep = ep.model_copy(deep=True)
+    big_ep.characters.append(
+        ep.characters[0].model_copy(update={"handle": "@IbuKos"})
+    )
+    big_ep.locations.append(
+        ep.locations[0].model_copy(update={"handle": "@WarungPojok"})
+    )
+    big_ep.locations.append(
+        ep.locations[0].model_copy(update={"handle": "@PosRonda"})
+    )
+    big_manifest = build_gflow_manifest(big_ep, tmp_path / big_ep.episode_id, spend=False)
+    sb = [c for c in big_manifest["commands"] if c["stage"] == "storyboard"][0]  # type: ignore[index]
+    assert sb["args"].count("--ref") <= 4
+
+
+
 
 
