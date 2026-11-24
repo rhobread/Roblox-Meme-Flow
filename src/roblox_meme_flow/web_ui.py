@@ -73,6 +73,15 @@ class SaveEpisodePayload(BaseModel):
     filename: str | None = None
 
 
+class SimpleUpdateEpisodePayload(BaseModel):
+    title_id: str | None = None
+    voice_preset: str | None = None
+    bgm_path: str | None = None
+    bgm_volume: float | None = None
+    enable_subtitles: bool | None = None
+    narrations: list[str] | None = None
+
+
 class EpisodeJobPayload(BaseModel):
     filename: str
     override_limit: bool = False
@@ -263,6 +272,40 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     def api_save_episode(payload: SaveEpisodePayload) -> dict[str, object]:
         try:
             saved = validate_and_save_yaml(payload.yaml_text, episodes_dir, payload.filename)
+            return {"ok": True, **saved}
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/episodes/{filename}/update-simple")
+    def api_update_simple(filename: str, payload: SimpleUpdateEpisodePayload) -> dict[str, object]:
+        import yaml as _yaml
+
+        ep_path = _safe_resolve_under(episodes_dir, filename)
+        if not ep_path.exists():
+            raise HTTPException(status_code=404, detail="Episode tidak ditemukan")
+        raw = _yaml.safe_load(ep_path.read_text(encoding="utf-8"))
+        if payload.title_id:
+            raw["title_id"] = payload.title_id.strip()
+        if payload.voice_preset and payload.voice_preset in VOICE_PRESETS:
+            vp = VOICE_PRESETS[payload.voice_preset]
+            raw["tts_voice"] = vp["tts_voice"]
+            raw["tts_rate"] = vp["tts_rate"]
+            raw["tts_pitch"] = vp["tts_pitch"]
+            raw["tts_pitch_shift"] = vp["tts_pitch_shift"]
+        if payload.bgm_path is not None:
+            raw["bgm_path"] = payload.bgm_path or None
+        if payload.bgm_volume is not None:
+            raw["bgm_volume"] = float(payload.bgm_volume)
+        if payload.enable_subtitles is not None:
+            raw["enable_subtitles"] = bool(payload.enable_subtitles)
+        if payload.narrations and isinstance(raw.get("scenes"), list):
+            for idx, text in enumerate(payload.narrations):
+                if idx < len(raw["scenes"]) and text.strip():
+                    raw["scenes"][idx]["narration_id"] = text.strip()
+
+        dumped = _yaml.safe_dump(raw, allow_unicode=True, sort_keys=False)
+        try:
+            saved = validate_and_save_yaml(dumped, episodes_dir, ep_path.name)
             return {"ok": True, **saved}
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
