@@ -21,6 +21,35 @@ def find_ffmpeg() -> str | None:
         return None
 
 
+def _probe_duration_seconds(ffmpeg: str, media_path: Path) -> float | None:
+    proc = subprocess.run(
+        [ffmpeg, "-i", str(media_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    for line in proc.stderr.splitlines():
+        if "Duration:" in line:
+            part = line.split("Duration:", 1)[1].split(",", 1)[0].strip()
+            hms = part.split(":")
+            if len(hms) == 3:
+                try:
+                    return int(hms[0]) * 3600 + int(hms[1]) * 60 + float(hms[2])
+                except ValueError:
+                    return None
+    return None
+
+
+def _has_audio_stream(ffmpeg: str, media_path: Path) -> bool:
+    proc = subprocess.run(
+        [ffmpeg, "-i", str(media_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return "Audio:" in proc.stderr
+
+
 async def _synthesize_edge_tts(text: str, voice: str, rate: str, out_mp3: Path) -> None:
     import edge_tts
 
@@ -28,21 +57,97 @@ async def _synthesize_edge_tts(text: str, voice: str, rate: str, out_mp3: Path) 
     await communicator.save(str(out_mp3))
 
 
+def _fit_scene_audio(ffmpeg: str, raw_mp3: Path, target_seconds: float, out_wav: Path) -> None:
+    """Fit a scene voiceover cleanly into target_seconds without cutting off speech."""
+    actual = _probe_duration_seconds(ffmpeg, raw_mp3)
+    filters: list[str] = []
+    if actual and actual > target_seconds - 0.15:
+        tempo = min(actual / max(target_seconds - 0.15, 1.0), 1.5)
+        filters.append(f"atempo={tempo:.3f}")
+    filters.append("apad")
+    filters.append(f"atrim=0:{target_seconds:.3f}")
+
+    proc = subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(raw_mp3),
+            "-af",
+            ",".join(filters),
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            str(out_wav),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed fitting scene audio: {proc.stderr[-1000:]}")
+
+
 def generate_voiceover_and_srt(ep: EpisodeSpec, out_dir: Path) -> tuple[Path, Path]:
     ep_dir = out_dir / ep.episode_id
-    ep_dir.mkdir(parents=True, exist_ok=True)
+    vo_dir = ep_dir / "vo_scenes"
+    vo_dir.mkdir(parents=True, exist_ok=True)
 
-    full_narration = " ".join(scene.narration_id.strip() for scene in ep.scenes)
     mp3_path = ep_dir / "voiceover.mp3"
     srt_path = ep_dir / "captions.srt"
-
     srt_path.write_text(build_srt(ep), encoding="utf-8")
-    asyncio.run(_synthesize_edge_tts(full_narration, ep.tts_voice, ep.tts_rate, mp3_path))
+
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        full_narration = " ".join(scene.narration_id.strip() for scene in ep.scenes)
+        asyncio.run(_synthesize_edge_tts(full_narration, ep.tts_voice, ep.tts_rate, mp3_path))
+        return mp3_path, srt_path
+
+    fitted_wavs: list[Path] = []
+    for scene in ep.scenes:
+        raw_scene_mp3 = vo_dir / f"scene_{scene.scene_number:02d}_raw.mp3"
+        fitted_wav = vo_dir / f"scene_{scene.scene_number:02d}_fit.wav"
+        asyncio.run(
+            _synthesize_edge_tts(
+                scene.narration_id.strip(), ep.tts_voice, ep.tts_rate, raw_scene_mp3
+            )
+        )
+        _fit_scene_audio(ffmpeg, raw_scene_mp3, float(scene.duration_seconds), fitted_wav)
+        fitted_wavs.append(fitted_wav)
+
+    concat_txt = vo_dir / "vo_concat.txt"
+    concat_txt.write_text(
+        "\n".join(f"file '{w.resolve().as_posix()}'" for w in fitted_wavs) + "\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_txt),
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "192k",
+            str(mp3_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed concatenating voiceover: {proc.stderr[-1000:]}")
+
     return mp3_path, srt_path
 
 
 def _escape_ffmpeg_filter_path(path: Path) -> str:
-    # Escape Windows drive colon and backslashes for ffmpeg subtitles filter
     raw = path.resolve().as_posix()
     return raw.replace(":", r"\:").replace("'", r"\'")
 
@@ -63,17 +168,65 @@ def assemble_video(
     ep_dir = out_dir / ep.episode_id
     ep_dir.mkdir(parents=True, exist_ok=True)
 
+    # Normalize each clip to uniform 1080x1920 30fps H.264/AAC first so concat never glitches
+    norm_dir = ep_dir / "clips_norm"
+    norm_dir.mkdir(parents=True, exist_ok=True)
+    normalized_clips: list[Path] = []
+    all_have_audio = True
+
+    for idx, clip in enumerate(clips, start=1):
+        norm_path = norm_dir / f"norm_{idx:02d}.mp4"
+        clip_has_audio = _has_audio_stream(ffmpeg, clip)
+        if not clip_has_audio:
+            all_have_audio = False
+
+        norm_cmd = [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(clip),
+        ]
+        if not clip_has_audio:
+            norm_cmd.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"])
+
+        norm_cmd.extend(
+            [
+                "-vf",
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "fast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-ar",
+                "44100",
+                "-ac",
+                "2",
+                "-b:a",
+                "192k",
+            ]
+        )
+        if not clip_has_audio:
+            norm_cmd.extend(["-map", "0:v:0", "-map", "1:a:0", "-shortest"])
+        norm_cmd.append(str(norm_path))
+
+        proc = subprocess.run(norm_cmd, capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg normalize failed for {clip.name}: {proc.stderr[-1000:]}")
+        normalized_clips.append(norm_path)
+
     concat_list = ep_dir / "concat_clips.txt"
-    lines = [f"file '{clip.resolve().as_posix()}'" for clip in clips]
+    lines = [f"file '{c.resolve().as_posix()}'" for c in normalized_clips]
     concat_list.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     output_mp4 = ep_dir / "final_9x16.mp4"
 
-    vf_filters = [
-        "scale=1080:1920:force_original_aspect_ratio=increase",
-        "crop=1080:1920",
-        "fps=30",
-    ]
+    vf_filters = ["fps=30"]
     if srt_path and srt_path.exists():
         escaped = _escape_ffmpeg_filter_path(srt_path)
         style = (
@@ -95,7 +248,20 @@ def assemble_video(
 
     if voiceover_path and voiceover_path.exists():
         cmd.extend(["-i", str(voiceover_path)])
-        cmd.extend(["-map", "0:v:0", "-map", "1:a:0", "-shortest"])
+        if all_have_audio:
+            # Mix subtle Google Flow SFX (30%) beneath clear Indonesian VO (100%)
+            cmd.extend(
+                [
+                    "-filter_complex",
+                    "[0:a]volume=0.30[sfx];[1:a]volume=1.0,apad[vo];[sfx][vo]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "[aout]",
+                ]
+            )
+        else:
+            cmd.extend(["-map", "0:v:0", "-map", "1:a:0"])
     else:
         cmd.extend(["-map", "0:v:0", "-map", "0:a?"])
 
@@ -121,5 +287,5 @@ def assemble_video(
 
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed ({proc.returncode}): {proc.stderr[-1500:]}")
+        raise RuntimeError(f"ffmpeg assemble failed ({proc.returncode}): {proc.stderr[-1500:]}")
     return output_mp4
