@@ -134,7 +134,10 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index() -> HTMLResponse:
         html_path = STATIC_DIR / "index.html"
-        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            html_path.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+        )
 
     @app.get("/api/status")
     def api_status(refresh_credits: bool = False) -> dict[str, object]:
@@ -183,9 +186,15 @@ def create_app(project_root: Path | None = None) -> FastAPI:
 
     @app.get("/api/episodes")
     def api_list_episodes() -> dict[str, object]:
+        import datetime as _dt
+
         items: list[dict[str, object]] = []
         if episodes_dir.exists():
             for path in sorted(episodes_dir.glob("*.yaml")):
+                stat = path.stat()
+                created_ts = stat.st_ctime
+                updated_ts = stat.st_mtime
+                created_iso = _dt.datetime.fromtimestamp(created_ts).strftime("%Y-%m-%d %H:%M")
                 try:
                     ep = load_episode(path)
                     issues = validate_episode(ep)
@@ -212,10 +221,23 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                             "has_voiceover": (layout.audio_dir / "voiceover.mp3").exists(),
                             "clip_count": len(clips),
                             "has_final_video": (layout.final_dir / "final_9x16.mp4").exists(),
+                            "created_ts": created_ts,
+                            "updated_ts": updated_ts,
+                            "created_label": created_iso,
                         }
                     )
                 except Exception as exc:
-                    items.append({"filename": path.name, "valid": False, "error": str(exc)})
+                    items.append(
+                        {
+                            "filename": path.name,
+                            "valid": False,
+                            "error": str(exc),
+                            "created_ts": created_ts,
+                            "updated_ts": updated_ts,
+                            "created_label": created_iso,
+                        }
+                    )
+        items.sort(key=lambda x: float(x.get("created_ts", 0)), reverse=True)
         return {"episodes": items}
 
     @app.get("/api/episodes/{filename}")

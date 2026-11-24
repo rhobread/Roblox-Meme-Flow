@@ -495,6 +495,13 @@
           <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;">Daftar Episode</span>
           <button class="ghost" style="padding:4px 8px;font-size:11px;" onclick="loadEpisodes()">Refresh</button>
         </div>
+        <select id="epSort" onchange="renderEpisodeList()" style="padding:6px 9px;font-size:12px;">
+          <option value="created_desc">Urutkan: Terbaru dibuat</option>
+          <option value="created_asc">Urutkan: Terlama dibuat</option>
+          <option value="updated_desc">Urutkan: Terakhir diubah</option>
+          <option value="status_desc">Urutkan: Siap Upload dulu</option>
+          <option value="title_asc">Urutkan: Judul (A–Z)</option>
+        </select>
         <div id="episodeList" class="ep-list"></div>
       </aside>
 
@@ -774,6 +781,7 @@
   <script>
     let currentFilename = null;
     let currentEpisodeData = null;
+    let cachedEpisodes = [];
     let selectedMode = "meme_roblox_id";
     let pollTimer = null;
 
@@ -875,9 +883,30 @@
 
     async function loadEpisodes() {
       const data = await api("/api/episodes");
+      cachedEpisodes = data.episodes || [];
+      renderEpisodeList();
+      if (!currentFilename && cachedEpisodes.length) {
+        const first = getSortedEpisodes()[0];
+        if (first) await selectEpisode(first.filename);
+      }
+    }
+
+    function getSortedEpisodes() {
+      const mode = document.getElementById("epSort")?.value || "created_desc";
+      const arr = [...cachedEpisodes];
+      const statusRank = (e) => (e.has_final_video ? 3 : e.has_storyboard ? 2 : 1);
+      if (mode === "created_desc") arr.sort((a, b) => (b.created_ts || 0) - (a.created_ts || 0));
+      else if (mode === "created_asc") arr.sort((a, b) => (a.created_ts || 0) - (b.created_ts || 0));
+      else if (mode === "updated_desc") arr.sort((a, b) => (b.updated_ts || 0) - (a.updated_ts || 0));
+      else if (mode === "status_desc") arr.sort((a, b) => statusRank(b) - statusRank(a) || (b.created_ts || 0) - (a.created_ts || 0));
+      else if (mode === "title_asc") arr.sort((a, b) => String(a.title_id || a.filename).localeCompare(String(b.title_id || b.filename)));
+      return arr;
+    }
+
+    function renderEpisodeList() {
       const list = document.getElementById("episodeList");
       list.innerHTML = "";
-      for (const ep of data.episodes) {
+      for (const ep of getSortedEpisodes()) {
         const div = document.createElement("div");
         div.className = "ep-card" + (ep.filename === currentFilename ? " active" : "");
         div.onclick = () => selectEpisode(ep.filename);
@@ -885,18 +914,17 @@
         const statusTag = ep.has_final_video
           ? `<span class="tag done">✅ Siap Upload</span>`
           : (ep.has_storyboard ? `<span class="tag">🖼️ Storyboard</span>` : `<span class="tag">📝 Draft</span>`);
+        const dateTag = ep.created_label ? `<span class="tag">📅 ${ep.created_label.slice(0, 10)}</span>` : "";
         div.innerHTML = `
           <div class="ep-card-title">${ep.title_id || ep.filename}</div>
           <div class="ep-card-tags">
             <span class="tag ${isKids ? 'kids' : ''}">${isKids ? '🧸 Anak' : '😂 Meme'}</span>
             <span class="tag">${ep.duration_seconds || 0}s · ~${ep.estimated_credits || 0} cr</span>
             ${statusTag}
+            ${dateTag}
           </div>
         `;
         list.appendChild(div);
-      }
-      if (!currentFilename && data.episodes.length) {
-        await selectEpisode(data.episodes[0].filename);
       }
     }
 
