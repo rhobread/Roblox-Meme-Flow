@@ -85,6 +85,15 @@ def main() -> int:
         if sys.stderr is None:
             sys.stderr = fh
 
+    try:
+        from roblox_meme_flow.win_silent import restore_hidden_user_chromium_windows
+
+        restored = restore_hidden_user_chromium_windows()
+        if restored:
+            print(f"[RECOVERY] Restored {restored} hidden user window(s) back to taskbar.", flush=True)
+    except Exception:
+        pass
+
     started_here = False
     server = None
 

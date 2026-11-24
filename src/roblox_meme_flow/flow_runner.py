@@ -21,8 +21,8 @@ from roblox_meme_flow.prompt_builder import (
     build_storyboard_prompt,
 )
 from roblox_meme_flow.win_silent import (
+    run_silent_gflow_subprocess,
     silent_subprocess_kwargs,
-    suppress_offscreen_chromium_focus,
 )
 
 AT_HANDLE_RE = re.compile(r"@([A-Z][A-Za-z0-9]*)")
@@ -286,15 +286,10 @@ def write_and_optionally_run_flow(
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
         _emit(f"-> Running [{step['stage']}] {step['target']} (background)...")
-        with suppress_offscreen_chromium_focus():
-            proc = subprocess.run(
-                run_args,
-                capture_output=True,
-                text=True,
-                env=_silent_gflow_env(),
-                check=False,
-                **silent_subprocess_kwargs(),
-            )
+        proc = run_silent_gflow_subprocess(
+            run_args,
+            env=_silent_gflow_env(),
+        )
         record = {
             "stage": step["stage"],
             "target": step["target"],
