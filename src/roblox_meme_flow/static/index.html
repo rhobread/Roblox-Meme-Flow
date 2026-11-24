@@ -476,12 +476,12 @@
 
     <nav class="nav-tabs">
       <button class="nav-tab active" data-tab="studio" onclick="switchTab('studio')">🎬 Studio Video</button>
-      <button class="nav-tab" data-tab="create" onclick="switchTab('create')">✨ Buat Ide &amp; Script Baru</button>
+      <button class="nav-tab" data-tab="create" onclick="switchTab('create')">✨ Buat Episode Baru</button>
       <button class="nav-tab" data-tab="settings" onclick="switchTab('settings')">⚙️ Kredit &amp; Pengaturan</button>
     </nav>
 
     <div class="top-right">
-      <span id="topDailyPill" class="pill ok">Hari ini: 0/1 video · 0/50 cr</span>
+      <span id="topDailyPill" class="pill ok">Hari ini: 0/1 video · 0/85 cr</span>
       <span id="topCreditPill" class="pill" style="cursor:pointer;" onclick="loadStatus(true)" title="Klik untuk cek saldo Google Flow live">💰 Cek Saldo</span>
     </div>
   </header>
@@ -564,7 +564,7 @@
               <button id="btnPrimaryPreview" class="primary lg" onclick="runPreview()">🎨 Buat Preview Gratis (0 Kredit)</button>
               <button id="btnPrimaryRender" class="success lg" onclick="runRender()">🚀 Render Video ke Google Flow</button>
             </div>
-            <label class="check-row" title="Aktifkan hanya jika ingin melewati batas 50 kredit / 1 video per hari">
+            <label class="check-row" title="Aktifkan hanya jika ingin melewati batas 85 kredit / 1 video per hari">
               <input type="checkbox" id="chkOverride" /> Override limit harian
             </label>
           </div>
@@ -651,23 +651,23 @@
   </section>
 
   <!-- ===================================================================== -->
-  <!-- TAB 2: BUAT IDE & SCRIPT BARU (GUIDED WIZARD)                         -->
+  <!-- TAB 2: BUAT EPISODE BARU (SIMPLE 1-CLICK FLOW)                        -->
   <!-- ===================================================================== -->
   <section id="view-create" class="view">
     <div class="centered-wrap">
       <div class="card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">✨ Langkah 1: Pilih Gaya Konten &amp; Budget Harian</h2>
-            <p class="subtext">Otomatis disesuaikan dengan algoritma YouTube Shorts, TikTok FYP, dan Instagram Reels.</p>
+            <h2 class="card-title">✨ Buat Episode Baru</h2>
+            <p class="subtext">Pilih gaya video, tulis ide (atau kosongkan biar AI pilihkan), lalu klik 1 tombol. Otomatis jadi script 8 scene siap render.</p>
           </div>
         </div>
 
-        <label>Pilih Jenis Konten (AI Skill)</label>
-        <div class="mode-cards" style="margin-bottom:16px;">
+        <label>1. Pilih Jenis Video</label>
+        <div class="mode-cards" style="margin-bottom:18px;">
           <div id="modeMeme" class="choice-card selected" onclick="pickMode('meme_roblox_id')">
             <div style="font-size:15px;font-weight:700;margin-bottom:4px;">😂 Meme Roblox "Di Dunia Ini..."</div>
-            <div class="subtext">Komedi absurd Indonesia, plot twist cepat, suara high-pitch lucu (Preset A).</div>
+            <div class="subtext">Komedi absurd Indonesia, plot twist cepat, suara lucu (Preset A).</div>
           </div>
           <div id="modeKids" class="choice-card" onclick="pickMode('kids_animation_id')">
             <div style="font-size:15px;font-weight:700;margin-bottom:4px;">🧸 Animasi Konten Anak-Anak</div>
@@ -675,63 +675,70 @@
           </div>
         </div>
 
-        <div class="grid-2" style="margin-bottom:14px;">
-          <div>
-            <label>Mesin AI Generator (Google — Tanpa ChatGPT)</label>
-            <select id="genEngine" onchange="onEngineChange()"></select>
+        <div style="margin-bottom:18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+            <label style="margin:0;">2. Ide Cerita (Opsional — boleh dikosongkan)</label>
+            <button id="btnFetchTrends" class="ghost" style="padding:4px 10px;font-size:12px;border:1px solid var(--border);" onclick="loadTrendIdeas()">🔥 Ambil Inspirasi Tren Viral Hari Ini</button>
           </div>
-          <div>
-            <label>Model AI</label>
-            <input id="genModel" type="text" value="gemini-4-neon" />
-          </div>
+          <input id="genTopic" type="text" placeholder="Contoh: anak kos nyolong wifi tetangga / kucing belajar berhitung (atau biarkan kosong)" />
+          <div id="trendsBox" style="display:none;margin-top:10px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;"></div>
         </div>
 
-        <div class="grid-2" style="margin-bottom:14px;">
+        <div class="grid-2" style="margin-bottom:18px;">
           <div>
-            <label>Target Durasi &amp; Biaya Kredit (Budget 80-85 cr/hari)</label>
+            <label>3. Target Durasi &amp; Biaya Kredit</label>
             <select id="genBudget"></select>
           </div>
           <div>
-            <label>Preset Suara Narator</label>
+            <label>4. Gaya Suara Narator</label>
             <select id="genVoice"></select>
           </div>
         </div>
 
-        <div style="margin-bottom:14px;">
-          <label>Ide / Topik Spesifik (Opsional — boleh dikosongkan biar AI pilih dari tren viral)</label>
-          <input id="genTopic" type="text" placeholder="Contoh: anak kos nyolong wifi tetangga / kelinci belajar berhitung" />
-        </div>
+        <button id="btnGenerateScript" class="success lg" style="width:100%;padding:14px 18px;font-size:15px;" onclick="generateViaAI()">
+          ✨ Buat Script Episode Sekarang
+        </button>
 
-        <div class="btn-row">
-          <button class="primary lg" onclick="runResearch()">🔍 1. Riset Tren Viral + Prompt T3 (Google Gemini)</button>
-          <button class="success lg" onclick="generateViaAI()">⚡ 2. Buat Script Otomatis (Antigravity / Gemini)</button>
-        </div>
-      </div>
-
-      <!-- STEP 2: LIVE TRENDS & T3 CODE BRIDGE -->
-      <div id="researchCard" class="card" style="display:none;">
-        <div class="card-header">
-          <div>
-            <h2 class="card-title">🔥 Tren Viral Indonesia Saat Ini &amp; Hubungkan ke T3 Code</h2>
-            <p class="subtext">Klik salah satu topik tren untuk menjadikannya inspirasi, lalu kirim prompt ke T3 Code.</p>
+        <!-- INLINE PROGRESS BANNER (stays right here on Create tab!) -->
+        <div id="createJobBanner" class="progress-banner" style="margin-top:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong id="createJobTitle">Sedang membuat script...</strong>
+            <button class="ghost" style="padding:3px 8px;font-size:11px;" onclick="hideCreateJobBanner()">Tutup</button>
           </div>
-          <button class="primary" onclick="copyT3Prompt()">📋 Salin Prompt ke T3 Code</button>
+          <div id="createJobProgressBar" class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+          <div id="createJobLog" class="log-mini"></div>
         </div>
 
-        <div id="trendsBox" style="margin-bottom:14px;"></div>
+        <!-- ADVANCED / MANUAL OPTIONS HIDDEN BY DEFAULT -->
+        <details style="margin-top:18px;">
+          <summary>⚙️ Pengaturan Lanjutan (Ganti Mesin AI / Cara Manual via Chat T3 Code)</summary>
+          <div class="grid-2" style="margin-bottom:14px;">
+            <div>
+              <label>Mesin AI Penulis Script</label>
+              <select id="genEngine" onchange="onEngineChange()"></select>
+            </div>
+            <div>
+              <label>Nama Model AI</label>
+              <input id="genModel" type="text" value="kilo/kilo-auto/free" />
+            </div>
+          </div>
 
-        <details>
-          <summary>Lihat Prompt Lengkap yang Akan Dikirim ke T3 Code</summary>
-          <textarea id="t3PromptBox" class="mono" rows="8" readonly></textarea>
+          <div style="padding-top:14px;border-top:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+              <div>
+                <div style="font-size:13px;font-weight:700;">Atau Buat Manual lewat Chat T3 Code</div>
+                <div class="subtext">Klik salin prompt, kirim ke chat T3 Code, lalu paste hasil YAML-nya di bawah.</div>
+              </div>
+              <button class="primary" onclick="copyT3PromptDirect()">📋 Buat &amp; Salin Prompt T3 Code</button>
+            </div>
+            <textarea id="t3PromptBox" class="mono" rows="5" readonly style="display:none;margin-bottom:10px;"></textarea>
+            <label>Paste hasil YAML dari chat T3 Code di sini:</label>
+            <textarea id="pasteYamlBox" class="mono" rows="6" placeholder="Paste blok YAML dari T3 Code di sini..."></textarea>
+            <div class="btn-row" style="margin-top:10px;">
+              <button class="success" onclick="savePastedYaml()">✅ Simpan Script &amp; Buka di Studio</button>
+            </div>
+          </div>
         </details>
-
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
-          <label>Sudah dapat hasil YAML dari chat T3 Code? Paste di sini lalu simpan:</label>
-          <textarea id="pasteYamlBox" class="mono" rows="8" placeholder="Paste blok YAML dari T3 Code di sini..."></textarea>
-          <div class="btn-row" style="margin-top:10px;">
-            <button class="success lg" onclick="savePastedYaml()">✅ Simpan Script &amp; Buka di Studio</button>
-          </div>
-        </div>
       </div>
     </div>
   </section>
@@ -761,7 +768,7 @@
           </div>
           <div class="scene-card">
             <div class="subtext">Kredit Terpakai Hari Ini</div>
-            <div id="setTodayCredits" style="font-size:26px;font-weight:800;margin-top:4px;">0 / 50</div>
+            <div id="setTodayCredits" style="font-size:26px;font-weight:800;margin-top:4px;">0 / 85</div>
           </div>
         </div>
 
@@ -1138,39 +1145,72 @@
       document.getElementById("jobBanner").classList.remove("active");
     }
 
-    function pollJob(jobId, label, onDone) {
+    function showCreateJobBanner(title, isErr = false) {
+      const b = document.getElementById("createJobBanner");
+      b.className = "progress-banner active" + (isErr ? " err" : "");
+      document.getElementById("createJobTitle").textContent = title;
+      document.getElementById("createJobProgressBar").style.display = isErr ? "none" : "block";
+    }
+    function hideCreateJobBanner() {
+      document.getElementById("createJobBanner").classList.remove("active");
+    }
+
+    function pollJob(jobId, label, onDone, opts = {}) {
       if (pollTimer) clearInterval(pollTimer);
-      switchTab("studio");
-      showJobBanner(label, false);
-      document.getElementById("jobLogMini").textContent = "Memulai proses...";
+      const inCreateTab = opts.target === "create";
+      if (!inCreateTab) switchTab("studio");
+
+      const setBanner = (title, isErr = false) => {
+        if (inCreateTab) showCreateJobBanner(title, isErr);
+        else showJobBanner(title, isErr);
+      };
+      const logEl = document.getElementById(inCreateTab ? "createJobLog" : "jobLogMini");
+      const barEl = document.getElementById(inCreateTab ? "createJobProgressBar" : "jobProgressBar");
+      const titleEl = document.getElementById(inCreateTab ? "createJobTitle" : "jobTitle");
+
+      setBanner(label, false);
+      logEl.textContent = "Memulai proses...";
+
       pollTimer = setInterval(async () => {
         try {
           const st = await api(`/api/jobs/${jobId}`);
-          document.getElementById("jobLogMini").textContent = (st.logs || []).join("\n");
-          const logBox = document.getElementById("jobLogMini");
-          logBox.scrollTop = logBox.scrollHeight;
+          logEl.textContent = (st.logs || []).join("\n");
+          logEl.scrollTop = logEl.scrollHeight;
           if (st.status !== "running") {
             clearInterval(pollTimer);
+            if (opts.onFinish) opts.onFinish();
             if (st.status === "done") {
-              document.getElementById("jobProgressBar").style.display = "none";
-              document.getElementById("jobTitle").textContent = "✅ " + label + " selesai!";
+              barEl.style.display = "none";
+              titleEl.textContent = "✅ " + label + " selesai!";
               showToast(label + " selesai!", "ok");
               if (onDone) await onDone(st);
             } else {
-              showJobBanner("❌ Gagal: " + (st.error || "Terjadi error"), true);
-              showToast("Proses gagal, cek pesan di banner.", "err");
+              setBanner("❌ Gagal: " + (st.error || "Terjadi error"), true);
+              showToast("Proses gagal — lihat detail di kotak merah.", "err");
             }
           }
         } catch (err) {
           clearInterval(pollTimer);
-          showJobBanner("❌ Error koneksi: " + err.message, true);
+          if (opts.onFinish) opts.onFinish();
+          setBanner("❌ Error koneksi: " + err.message, true);
         }
       }, 1500);
     }
 
-    async function runResearch() {
+    function escapeHtml(str) {
+      return String(str || "").replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    function pickTrendTopic(title) {
+      document.getElementById("genTopic").value = title;
+      showToast("Ide dipilih: " + title);
+    }
+
+    async function loadTrendIdeas() {
+      const btn = document.getElementById("btnFetchTrends");
+      btn.disabled = true;
+      btn.textContent = "⏳ Mengambil tren...";
       try {
-        showToast("Mengambil tren viral Indonesia...");
         const data = await api("/api/research", {
           method: "POST",
           body: JSON.stringify({
@@ -1181,27 +1221,67 @@
             bgm_path: document.getElementById("optBgm").value || "assets/bgm/in_this_town_bgm.mp3",
           }),
         });
-        document.getElementById("researchCard").style.display = "block";
         document.getElementById("t3PromptBox").value = data.t3_prompt;
         const trends = data.brief.live_trends_id || [];
-        document.getElementById("trendsBox").innerHTML = trends.length
-          ? trends.map(t => `<span class="trend-chip" onclick="document.getElementById('genTopic').value='${t.title.replace(/'/g, "")}';showToast('Topik dipilih: ${t.title.replace(/'/g, "")}')">🔥 ${t.title}${t.traffic ? " · " + t.traffic : ""}</span>`).join("")
-          : `<span class="subtext">Siap memakai bank ide viral Indonesia.</span>`;
-        showToast("Riset viral selesai! Salin prompt ke T3 atau klik Buat Script Otomatis.");
+        const angles = data.brief.recommended_angles || [];
+        const box = document.getElementById("trendsBox");
+        box.style.display = "block";
+        let html = "";
+        if (trends.length) {
+          html += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;">🔥 Sedang Tren di Indonesia (klik untuk pakai):</div>`;
+          html += trends.map(t => {
+            const safe = escapeHtml(t.title);
+            const attr = safe.replace(/'/g, "&#39;");
+            return `<span class="trend-chip" onclick="pickTrendTopic(this.dataset.topic)" data-topic="${attr}">🔥 ${safe}${t.traffic ? " · " + escapeHtml(t.traffic) : ""}</span>`;
+          }).join("");
+        }
+        if (angles.length) {
+          html += `<div style="font-size:11px;color:var(--muted);margin:8px 0 6px;font-weight:700;">💡 Ide Viral Siap Pakai (klik untuk pakai):</div>`;
+          html += angles.map(a => {
+            const safe = escapeHtml(a);
+            return `<span class="trend-chip" onclick="pickTrendTopic(this.dataset.topic)" data-topic="${safe}">💡 ${safe}</span>`;
+          }).join("");
+        }
+        box.innerHTML = html || `<span class="subtext">Langsung klik Buat Script Episode Sekarang!</span>`;
+        showToast("Inspirasi tren siap dipilih!");
       } catch (err) {
-        showToast(err.message, "err");
+        showToast("Gagal ambil tren: " + err.message, "err");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "🔥 Ambil Inspirasi Tren Viral Hari Ini";
       }
     }
 
-    async function copyT3Prompt() {
-      await navigator.clipboard.writeText(document.getElementById("t3PromptBox").value);
-      showToast("Prompt tersalin! Paste ke T3 Code lalu paste hasil YAML di bawah.");
+    async function copyT3PromptDirect() {
+      try {
+        showToast("Menyiapkan prompt T3 Code...");
+        const data = await api("/api/research", {
+          method: "POST",
+          body: JSON.stringify({
+            content_mode: selectedMode,
+            budget_preset: document.getElementById("genBudget").value,
+            voice_preset: document.getElementById("genVoice").value,
+            topic_hint: document.getElementById("genTopic").value,
+            bgm_path: document.getElementById("optBgm").value || "assets/bgm/in_this_town_bgm.mp3",
+          }),
+        });
+        const box = document.getElementById("t3PromptBox");
+        box.style.display = "block";
+        box.value = data.t3_prompt;
+        await navigator.clipboard.writeText(data.t3_prompt);
+        showToast("Prompt tersalin! Paste di chat T3 Code, lalu tempel hasil YAML-nya di bawah.");
+      } catch (err) {
+        showToast("Gagal salin prompt: " + err.message, "err");
+      }
     }
 
     async function generateViaAI() {
+      const btn = document.getElementById("btnGenerateScript");
+      btn.disabled = true;
+      btn.textContent = "⏳ AI sedang membuat script (tunggu ~15-40 detik)...";
       try {
-        const engine = document.getElementById("genEngine").value;
-        const model = document.getElementById("genModel").value;
+        const engine = document.getElementById("genEngine").value || "kilo_free";
+        const model = document.getElementById("genModel").value || "kilo/kilo-auto/free";
         const res = await api("/api/generate-script", {
           method: "POST",
           body: JSON.stringify({
@@ -1214,11 +1294,30 @@
             model,
           }),
         });
-        pollJob(res.job_id, `Membuat Script Viral Cepat (${model})`, async (done) => {
-          await loadEpisodes();
-          if (done.result && done.result.saved) await selectEpisode(done.result.saved.filename);
-        });
+        pollJob(
+          res.job_id,
+          "Membuat Script Episode Baru",
+          async (done) => {
+            await loadEpisodes();
+            if (done.result && done.result.saved) {
+              await selectEpisode(done.result.saved.filename);
+              hideCreateJobBanner();
+              switchTab("studio");
+              showToast("✅ Episode baru siap! Klik Buat Preview Gratis (0 Kredit).", "ok");
+            }
+          },
+          {
+            target: "create",
+            onFinish: () => {
+              btn.disabled = false;
+              btn.textContent = "✨ Buat Script Episode Sekarang";
+            },
+          }
+        );
       } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "✨ Buat Script Episode Sekarang";
+        showCreateJobBanner("❌ Gagal memulai: " + err.message, true);
         showToast(err.message, "err");
       }
     }

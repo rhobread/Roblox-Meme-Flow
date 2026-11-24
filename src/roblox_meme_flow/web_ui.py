@@ -69,8 +69,8 @@ class ResearchPayload(BaseModel):
 
 
 class GenerateScriptPayload(ResearchPayload):
-    engine: Literal["antigravity", "kilo_google", "kilo_custom"] = "antigravity"
-    model: str = "gemini-4-neon"
+    engine: Literal["kilo_free", "kilo_custom", "antigravity"] = "kilo_free"
+    model: str = "kilo/kilo-auto/free"
 
 
 class SaveEpisodePayload(BaseModel):
@@ -447,7 +447,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
     @app.post("/api/generate-script")
     def api_generate_script(payload: GenerateScriptPayload) -> dict[str, object]:
         def _work(job: JobState) -> dict[str, object]:
-            job.append("[1/3] Melakukan riset tren viral Indonesia (YT Shorts / TikTok / IG Reels)...")
+            job.append("[1/3] Mengambil tren viral Indonesia hari ini...")
             prompt, brief = build_t3_generation_prompt(
                 project_root=root,
                 content_mode=payload.content_mode,
@@ -456,14 +456,19 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 topic_hint=payload.topic_hint,
                 bgm_path=payload.bgm_path,
             )
-            job.append(f"      Ditemukan {len(brief.live_trends_id)} tren live Google Trends ID.")
+            job.append(f"      Siap! Ditemukan {len(brief.live_trends_id)} topik tren Indonesia.")
             if payload.engine == "antigravity":
-                job.append(f"[2/3] Memanggil Google Antigravity CLI (`agy`) model '{payload.model}' (effort high)...")
-                saved = generate_script_via_antigravity(root, prompt, model=payload.model)
+                job.append(f"[2/3] AI sedang menulis script ({payload.model})...")
+                saved = generate_script_via_antigravity(
+                    root, prompt, model=payload.model, log_callback=job.append
+                )
             else:
-                job.append(f"[2/3] Memanggil Kilo CLI model '{payload.model}' (tanpa ChatGPT)...")
-                saved = generate_script_via_kilo(root, prompt, model=payload.model)
-            job.append(f"[3/3] Script valid & tersimpan: episodes/{saved['filename']}")
+                model_name = payload.model.strip() or "kilo/kilo-auto/free"
+                job.append(f"[2/3] AI sedang menulis cerita & scene ({model_name})...")
+                saved = generate_script_via_kilo(
+                    root, prompt, model=model_name, log_callback=job.append
+                )
+            job.append(f"[3/3] Selesai! Episode tersimpan: {saved['title_id']}")
             return {"saved": saved, "brief": brief.to_dict()}
 
         return {"job_id": _start_job("generate_script", _work)}
@@ -524,6 +529,18 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             ep = _apply_audio_overrides(load_episode(ep_path), payload)
             layout = EpisodeLayout.for_episode(outputs_dir, ep.episode_id)
             layout.ensure_dirs()
+            existing_refs = list(layout.refs_dir.glob("*.*")) if layout.refs_dir.exists() else []
+            if not existing_refs:
+                job.append("[0/3] Gambar referensi belum ada — membuat gambar karakter & lokasi dulu (0 kredit)...")
+                export_plan(ep, outputs_dir, source_yaml=ep_path)
+                write_and_optionally_run_flow(
+                    ep=ep,
+                    out_dir=outputs_dir,
+                    spend=False,
+                    execute=True,
+                    stages={"reference_image"},
+                    log_callback=job.append,
+                )
             job.append("[1/3] Memeriksa limit kredit harian & menjalankan Google Flow Video...")
             write_and_optionally_run_flow(
                 ep=ep,
@@ -565,10 +582,14 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             ep = _apply_audio_overrides(load_episode(ep_path), payload)
             layout = EpisodeLayout.for_episode(outputs_dir, ep.episode_id)
             clips = sorted(layout.clips_dir.glob("scene_*.mp4"))
-            if not clips:
-                raise RuntimeError("Belum ada klip video di 02_clips/. Jalankan Render Video dulu.")
-            job.append("[1/2] Regenerate Voiceover & Subtitle (0 kredit)...")
+            job.append("[1/2] Membuat ulang Voiceover & Subtitle (0 kredit)...")
             generate_voiceover_and_srt(ep, outputs_dir)
+            if not clips:
+                job.append(
+                    "[SELESAI - 0 KREDIT] Suara preview diperbarui! "
+                    "BGM & subtitle akan otomatis terpasang saat klik Render Video."
+                )
+                return {"episode_id": ep.episode_id, "voiceover_only": True}
             job.append("[2/2] Mixing ulang klip + VO baru + BGM + Subtitle (0 kredit)...")
             bgm_resolved = (root / ep.bgm_path) if ep.bgm_path else None
             out_mp4 = assemble_video(

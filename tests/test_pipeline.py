@@ -19,7 +19,12 @@ from roblox_meme_flow.prompt_builder import (
     export_plan,
 )
 from roblox_meme_flow.researcher import build_viral_research_brief
-from roblox_meme_flow.script_gen import build_t3_generation_prompt
+from roblox_meme_flow.script_gen import (
+    build_antigravity_cmd,
+    build_t3_generation_prompt,
+    sanitize_episode_dict,
+    validate_and_save_yaml,
+)
 from roblox_meme_flow.validator import has_errors, validate_episode
 from roblox_meme_flow.web_ui import create_app
 from roblox_meme_flow.win_silent import is_gflow_playwright_executable, should_hide_gflow_window
@@ -394,5 +399,59 @@ def test_desktop_launcher_auto_shutdown_and_heartbeat_endpoints() -> None:
     r_hb2 = client.post("/api/heartbeat")
     assert r_hb2.status_code == 200
     assert app.state.lifecycle_snapshot()["ui_closed_at"] is None
+
+
+def test_script_gen_antigravity_cmd_and_auto_sanitizer(tmp_path: Path) -> None:
+    # --print MUST receive the prompt directly, never --model
+    cmd = build_antigravity_cmd("agy.exe", "Buat script", model="gemini-4-neon", effort="high")
+    print_idx = cmd.index("--print")
+    assert cmd[print_idx + 1] == "Buat script"
+    assert cmd[cmd.index("--model") + 1] == "gemini-4-neon"
+
+    # Auto-sanitizer repairs em dashes, raw trademark words, beat aliases, and missing handles
+    messy_yaml = """```yaml
+episode_id: "2026-11-24-test-auto-fix"
+title_id: "Di Dunia Ini — Utang Bikin Melayang"
+world_rule_id: "Di dunia ini — siapa yang lupa bayar utang langsung melayang."
+content_mode: "meme_roblox_id"
+video_model: "veo-lite"
+characters:
+  - handle: "budi_kos"
+    role: "Anak kos"
+    visual_description: "Roblox blocky character in yellow"
+    wardrobe: "blue shirt"
+locations:
+  - handle: "@warkop_malam"
+    visual_description: "Indonesian warkop Roblox map"
+    lighting: "warm lamp"
+scenes:
+  - scene_number: 1
+    beat: "opening"
+    duration_seconds: 6
+    characters: ["budi_kos"]
+    location: "@warkop_malam"
+    narration_id: "Di dunia ini — lupa bayar utang langsung melayang tinggi!"
+    visual_prompt: "A blocky Roblox character floats upward holding instant noodles."
+  - scene_number: 2
+    beat: "punchline"
+    duration_seconds: 6
+    characters: ["budi_kos"]
+    location: "@warkop_malam"
+    narration_id: "Akhirnya Budi nyangkut di plafon warkop sambil dadah-dadah!"
+    visual_prompt: "Smiling wildly near ceiling with @GhostTypo watching."
+```"""
+    saved = validate_and_save_yaml(messy_yaml, tmp_path / "episodes", auto_sanitize=True)
+    assert saved["filename"] == "2026-11-24-test-auto-fix.yaml"
+    loaded = load_episode(Path(str(saved["path"])))
+    issues = validate_episode(loaded)
+    assert not issues, f"Expected zero issues after auto_sanitize, got: {issues}"
+    assert loaded.characters[0].handle == "@BudiKos"
+    assert loaded.locations[0].handle == "@WarkopMalam"
+    assert loaded.scenes[0].beat == "hook"
+    assert loaded.scenes[1].beat == "outro"
+    assert "@BudiKos" in loaded.scenes[0].visual_prompt
+    assert "@WarkopMalam" in loaded.scenes[0].visual_prompt
+    assert "@GhostTypo" not in loaded.scenes[1].visual_prompt
+
 
 
