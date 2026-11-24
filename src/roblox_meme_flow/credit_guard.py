@@ -25,44 +25,44 @@ FLAT_CREDITS_PER_CLIP_BY_MODEL: dict[str, int] = {
 }
 
 BUDGET_PRESETS: dict[str, dict[str, object]] = {
+    "long_veo_80": {
+        "label": "Rekomendasi 35-45 Detik Cepat (8 scene x 6s Veo Lite = ~80 cr)",
+        "scenes": 8,
+        "duration_seconds": 6,
+        "video_model": "veo-lite",
+        "estimated_credits": 80,
+        "sustainable_forever": False,
+    },
+    "rapid_81": {
+        "label": "Super Cepat 9 Scene (9x3s Omni = 81 cr, cut kilat 3 detik)",
+        "scenes": 9,
+        "duration_seconds": 3,
+        "video_model": "omni-1.2-flash",
+        "estimated_credits": 81,
+        "sustainable_forever": False,
+    },
+    "fast_84": {
+        "label": "Padat 7 Scene (7x4s Omni = 84 cr, ~28 detik nonstop)",
+        "scenes": 7,
+        "duration_seconds": 4,
+        "video_model": "omni-1.2-flash",
+        "estimated_credits": 84,
+        "sustainable_forever": False,
+    },
     "hemat_50": {
-        "label": "Hemat 1 Video/Hari Selamanya (4x4s = 48 kredit <= 50/hari)",
+        "label": "Hemat 100% Gratis Harian (4x4s Omni = 48 cr <= +50/hari)",
         "scenes": 4,
         "duration_seconds": 4,
         "video_model": "omni-1.2-flash",
         "estimated_credits": 48,
         "sustainable_forever": True,
     },
-    "hemat_3scene": {
-        "label": "Super Hemat 3 Scene (3x5s = 45 kredit <= 50/hari)",
-        "scenes": 3,
-        "duration_seconds": 5,
-        "video_model": "omni-1.2-flash",
-        "estimated_credits": 45,
-        "sustainable_forever": True,
-    },
-    "seimbang_60": {
-        "label": "Seimbang (4x5s = 60 kredit, net -10/hari dari saldo)",
-        "scenes": 4,
-        "duration_seconds": 5,
-        "video_model": "omni-1.2-flash",
-        "estimated_credits": 60,
-        "sustainable_forever": False,
-    },
-    "full_72": {
-        "label": "Full 24 Detik (4x6s = 72 kredit, net -22/hari dari saldo)",
-        "scenes": 4,
-        "duration_seconds": 6,
-        "video_model": "omni-1.2-flash",
-        "estimated_credits": 72,
-        "sustainable_forever": False,
-    },
 }
 
 
 @dataclass
 class DailyBudgetPolicy:
-    daily_credit_limit: int = 50
+    daily_credit_limit: int = 85
     max_videos_per_day: int = 1
     daily_refill_credits: int = 50
 

@@ -16,7 +16,9 @@ def _grid_for_panel_count(count: int) -> str:
         return "2x2"
     if count <= 6:
         return "2x3"
-    return "3x3"
+    if count <= 9:
+        return "3x3"
+    return "3x4"
 
 
 def build_reference_prompts(ep: EpisodeSpec) -> dict[str, str]:
@@ -110,25 +112,29 @@ def _split_caption_chunks(text: str, max_words: int = 5) -> list[str]:
     return chunks
 
 
-def build_srt(ep: EpisodeSpec) -> str:
+def build_srt(ep: EpisodeSpec, scene_durations: list[float] | None = None) -> str:
     entries: list[str] = []
     cursor = 0.0
     counter = 1
 
-    for scene in ep.scenes:
+    for idx, scene in enumerate(ep.scenes):
+        dur = (
+            float(scene_durations[idx])
+            if scene_durations and idx < len(scene_durations)
+            else float(scene.duration_seconds)
+        )
         caption_source = scene.subtitle_override or scene.narration_id
-        chunks = _split_caption_chunks(caption_source, max_words=5)
+        chunks = _split_caption_chunks(caption_source, max_words=4)
         if not chunks:
-            cursor += float(scene.duration_seconds)
+            cursor += dur
             continue
 
-        chunk_dur = float(scene.duration_seconds) / len(chunks)
+        chunk_dur = dur / len(chunks)
         for chunk in chunks:
             start = cursor
-            end = min(cursor + chunk_dur, cursor + float(scene.duration_seconds))
-            # Avoid zero-length cues
+            end = min(cursor + chunk_dur, cursor + dur)
             if math.isclose(start, end):
-                end = start + 0.5
+                end = start + 0.35
             entries.append(
                 f"{counter}\n{_fmt_srt_time(start)} --> {_fmt_srt_time(end)}\n{chunk.upper()}\n"
             )

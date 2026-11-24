@@ -187,12 +187,12 @@ def validate_episode(ep: EpisodeSpec) -> list[ValidationIssue]:
                 )
             )
 
-    if ep.total_duration_seconds > 32:
+    if ep.total_duration_seconds > 52:
         issues.append(
             ValidationIssue(
                 severity="warning",
                 code="DURATION_LONG",
-                message=f"Total duration is {ep.total_duration_seconds}s (> 32s). Keep meme shorts snappy.",
+                message=f"Total duration is {ep.total_duration_seconds}s (> 52s). Keep short-form videos under 45-50s.",
             )
         )
     elif ep.total_duration_seconds < 12:

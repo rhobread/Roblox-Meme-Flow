@@ -1,0 +1,129 @@
+episode_id: "2026-11-24-viral04-wifi-tetangga-fast"
+title_id: "Di Dunia Ini, Nyolong WiFi Tetangga Bikin Rambut Jadi Antena"
+world_rule_id: "Di dunia ini, siapa pun yang numpang WiFi tetangga tanpa izin, rambutnya langsung berubah jadi antena parabola raksasa."
+content_mode: "meme_roblox_id"
+aspect_ratio: "9:16"
+image_model: "nano-2.1"
+video_model: "veo-lite"
+tts_voice: "id-ID-ArdiNeural"
+tts_rate: "+18%"
+tts_pitch: "+28Hz"
+tts_pitch_shift: 1.18
+bgm_path: "assets/bgm/in_this_town_bgm.mp3"
+bgm_volume: 0.16
+fast_cut_sync: true
+scene_gap_seconds: 0.10
+
+characters:
+  - handle: "@AgusKos"
+    role: "Anak kos kere akhir bulan yang hobi cari WiFi gratis"
+    visual_description: "Blocky 3D plastic toy avatar, bright yellow cylindrical head, messy black spiky plastic hair, rectangular torso and limbs"
+    wardrobe: "faded orange oversized t-shirt, dark shorts, blue plastic flip-flops"
+    expression_default: "sneaky mischievous grin"
+  - handle: "@PakRT"
+    role: "Tetangga pemilik WiFi super kencang yang jago nyidak"
+    visual_description: "Blocky 3D plastic toy avatar, tan cylindrical head, neat black mustache, black rimless glasses, rectangular torso and limbs"
+    wardrobe: "brown batik shirt, black trousers, dark leather sandals"
+    expression_default: "suspicious narrow-eyed deadpan stare"
+
+locations:
+  - handle: "@GangKosanMalam"
+    visual_description: "Lively narrow Indonesian residential alley at dusk in colorful blocky 3D plastic game architecture, glowing house windows, tiled roofs, concrete wall separating boarding rooms and neighbor's house, street lamp"
+    lighting: "warm golden street-lamp glow against deep purple evening sky"
+    key_props:
+      - "glowing WiFi router on neighbor's window sill"
+      - "smartphone with blazing signal bars"
+      - "green plastic stool"
+
+scenes:
+  - scene_number: 1
+    beat: "hook"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+    location: "@GangKosanMalam"
+    narration_id: "Di dunia ini, tiap kali kamu nyolong WiFi tetangga, rambut kamu langsung berubah jadi antena parabola raksasa!"
+    visual_prompt: "In @GangKosanMalam, @AgusKos crouches sneakily beside the concrete wall tapping his glowing smartphone with a mischievous grin, while bright cyan WiFi sparks suddenly crackle out of his black blocky hair."
+    camera: "punchy vertical low-angle close-up pushing rapidly onto @AgusKos"
+    audio_sfx: "WiFi connected chime, electric zap pop"
+
+  - scene_number: 2
+    beat: "setup"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+    location: "@GangKosanMalam"
+    narration_id: "Agus anak kos akhir bulan, kuota udah nol koma nol satu mega, nekat nebak password WiFi Pak RT pakai tanggal lahir."
+    visual_prompt: "In @GangKosanMalam, @AgusKos frantically taps his smartphone screen under the glowing street lamp, sweating tiny cartoon plastic drops as a green unlocked glow reflects off his face."
+    camera: "snappy vertical over-the-shoulder shot of @AgusKos tapping his phone"
+    audio_sfx: "rapid phone typing clicks, triumphant unlock ding"
+
+  - scene_number: 3
+    beat: "escalation"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+    location: "@GangKosanMalam"
+    narration_id: "Begitu berhasil connect dan langsung buka game ranked, kepala Agus langsung numbuh antena TV sepanjang tiang jemuran!"
+    visual_prompt: "In @GangKosanMalam, @AgusKos gasps in plastic shock as a towering shiny silver satellite dish antenna rockets upward straight out of his hair, rotating dramatically with blinking red signal lights."
+    camera: "whip-tilt vertical camera tracking upward along the giant antenna sprouting from @AgusKos"
+    audio_sfx: "cartoon telescopic boing, loud radar ping"
+
+  - scene_number: 4
+    beat: "complication"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+      - "@PakRT"
+    location: "@GangKosanMalam"
+    narration_id: "Sialnya, sinyalnya kepalang kenceng sampai lampu rumah Pak RT kedip-kedip dan Pak RT langsung keluar bawa senter!"
+    visual_prompt: "In @GangKosanMalam, @PakRT bursts out the front door shining a bright flashlight beam straight toward the alley while @AgusKos panics trying to fold the massive metallic dish on his head behind a tiny potted plant."
+    camera: "fast vertical snap-zoom from furious @PakRT to panicked @AgusKos hiding poorly"
+    audio_sfx: "door slam, dramatic suspense brass sting"
+
+  - scene_number: 5
+    beat: "climax"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+      - "@PakRT"
+    location: "@GangKosanMalam"
+    narration_id: "Agus pura-pura jadi patung taman, tapi kepalanya malah muter sendiri ngikutin arah router kayak radar bandara!"
+    visual_prompt: "In @GangKosanMalam, @AgusKos stands stiffly pretending to be a statue while the giant silver satellite dish on his head loudly spins in full circles locking straight onto @PakRT's window router as @PakRT glares deadpan."
+    camera: "deadpan vertical two-shot contrasting stiff spinning @AgusKos with unimpressed @PakRT"
+    audio_sfx: "mechanical servo whir, loud radar beep beep beep"
+
+  - scene_number: 6
+    beat: "twist"
+    duration_seconds: 6
+    characters:
+      - "@PakRT"
+      - "@AgusKos"
+    location: "@GangKosanMalam"
+    narration_id: "Kirain bakal dimarahin abis-abisan, ternyata Pak RT malah seneng karena TV ruang tamunya jadi bening dapet seratus channel!"
+    visual_prompt: "In @GangKosanMalam, @PakRT suddenly breaks into a delighted plastic grin, giving an enthusiastic thumbs-up while plugging a coaxial cable from his window straight into the giant satellite dish on @AgusKos's head."
+    camera: "comedic vertical medium shot of delighted @PakRT plugging a cable into stunned @AgusKos"
+    audio_sfx: "record scratch, cheerful cable plug pop, upbeat triumph chime"
+
+  - scene_number: 7
+    beat: "escalation"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+      - "@PakRT"
+    location: "@GangKosanMalam"
+    narration_id: "Sekarang tiap malam minggu Agus dapet WiFi gratis sepuasnya, syaratnya dia harus berdiri di atap kosan biar bola nggak burem."
+    visual_prompt: "In @GangKosanMalam, @AgusKos stands heroically on the tiled roof holding his phone with the huge silver antenna glowing brightly on his head while @PakRT waves cheerfully from the doorway below with a mug of coffee."
+    camera: "wide vertical low-angle shot framing @AgusKos on the roof and happy @PakRT below"
+    audio_sfx: "night breeze, happy crowd cheer from TV inside"
+
+  - scene_number: 8
+    beat: "outro"
+    duration_seconds: 6
+    characters:
+      - "@AgusKos"
+    location: "@GangKosanMalam"
+    narration_id: "Agus lagi push rank sambil jadi antena RT nol lima! Tag temen kamu yang tiap main ke rumah langsung nanya password WiFi!"
+    visual_prompt: "On the roof above @GangKosanMalam, @AgusKos vigorously plays his glowing smartphone while his spinning head antenna shoots playful cyan WiFi rings into the starry sky with a deadpan proud grin."
+    camera: "tight dynamic vertical hero shot spinning around proud @AgusKos on the roof"
+    audio_sfx: "arcade victory fanfare, crisp comedic outro pop"

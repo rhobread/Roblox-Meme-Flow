@@ -34,7 +34,7 @@ def test_all_episodes_pass_validation() -> None:
         ep = load_episode(path)
         issues = validate_episode(ep)
         assert not issues, f"Unexpected issues in {path.name}: {issues}"
-        assert 12 <= ep.total_duration_seconds <= 32
+        assert 12 <= ep.total_duration_seconds <= 52
 
 
 def test_storyboard_prompt_starts_with_hard_rule() -> None:
@@ -160,24 +160,51 @@ def test_viral_research_and_t3_prompt_generation() -> None:
     assert "in_this_town_bgm.mp3" in prompt
 
 
-def test_web_ui_endpoints() -> None:
+def test_web_ui_endpoints(tmp_path: Path) -> None:
     app = create_app(EPISODES_DIR.parent)
     client = TestClient(app)
 
     r_home = client.get("/")
     assert r_home.status_code == 200
     assert "Roblox-Meme-Flow Studio" in r_home.text
+    assert 'id="epSort"' in r_home.text
 
     r_status = client.get("/api/status?refresh_credits=false")
     assert r_status.status_code == 200
     status_data = r_status.json()
-    assert "hemat_50" in status_data["budget_presets"]
+    assert "long_veo_80" in status_data["budget_presets"]
+    assert "antigravity" in status_data["ai_engines"]
     assert "kids-animation-id" in status_data["skills"]
 
     r_eps = client.get("/api/episodes")
     assert r_eps.status_code == 200
-    assert len(r_eps.json()["episodes"]) >= 6
+    assert len(r_eps.json()["episodes"]) >= 7
 
     r_ep = client.get("/api/episodes/kids_ep01_awan_pelangi.yaml")
     assert r_ep.status_code == 200
     assert r_ep.json()["estimated_credits"] == 48
+
+
+def test_web_ui_delete_episode_removes_yaml_and_all_outputs(tmp_path: Path) -> None:
+    ep_dir = tmp_path / "episodes"
+    out_dir = tmp_path / "outputs" / "2026-11-24-temp-del" / "01_final"
+    ep_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True)
+
+    sample_yaml = KIDS_EPISODE.read_text(encoding="utf-8").replace(
+        "2026-11-24-kids01-awan-pelangi", "2026-11-24-temp-del"
+    )
+    yaml_file = ep_dir / "temp_del.yaml"
+    yaml_file.write_text(sample_yaml, encoding="utf-8")
+    dummy_mp4 = out_dir / "final_9x16.mp4"
+    dummy_mp4.write_bytes(b"0" * 1024 * 512)  # 0.5 MB
+
+    app = create_app(tmp_path)
+    client = TestClient(app)
+    res = client.delete("/api/episodes/temp_del.yaml")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert data["freed_mb"] >= 0.5
+    assert not yaml_file.exists()
+    assert not (tmp_path / "outputs" / "2026-11-24-temp-del").exists()

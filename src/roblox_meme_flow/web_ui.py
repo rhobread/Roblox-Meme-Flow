@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import threading
 import uuid
@@ -26,8 +27,10 @@ from roblox_meme_flow.models import load_episode
 from roblox_meme_flow.prompt_builder import export_plan
 from roblox_meme_flow.researcher import build_viral_research_brief
 from roblox_meme_flow.script_gen import (
+    AI_ENGINES,
     VOICE_PRESETS,
     build_t3_generation_prompt,
+    generate_script_via_antigravity,
     generate_script_via_kilo,
     validate_and_save_yaml,
 )
@@ -50,14 +53,14 @@ class JobState:
 
 
 class SettingsPayload(BaseModel):
-    daily_credit_limit: int = 50
+    daily_credit_limit: int = 85
     max_videos_per_day: int = 1
     daily_refill_credits: int = 50
 
 
 class ResearchPayload(BaseModel):
     content_mode: Literal["meme_roblox_id", "kids_animation_id"] = "meme_roblox_id"
-    budget_preset: str = "hemat_50"
+    budget_preset: str = "long_veo_80"
     voice_preset: str = "preset_a"
     topic_hint: str = ""
     bgm_path: str = "assets/bgm/in_this_town_bgm.mp3"
@@ -65,7 +68,8 @@ class ResearchPayload(BaseModel):
 
 
 class GenerateScriptPayload(ResearchPayload):
-    kilo_model: str = "openai/gpt-6.2-sol"
+    engine: Literal["antigravity", "kilo_google", "kilo_custom"] = "antigravity"
+    model: str = "gemini-4-neon"
 
 
 class SaveEpisodePayload(BaseModel):
@@ -79,6 +83,7 @@ class SimpleUpdateEpisodePayload(BaseModel):
     bgm_path: str | None = None
     bgm_volume: float | None = None
     enable_subtitles: bool | None = None
+    fast_cut_sync: bool | None = None
     narrations: list[str] | None = None
 
 
@@ -89,6 +94,15 @@ class EpisodeJobPayload(BaseModel):
     bgm_path: str | None = None
     bgm_volume: float | None = None
     enable_subtitles: bool | None = None
+    fast_cut_sync: bool | None = None
+
+
+def _dir_size_bytes(path: Path) -> int:
+    if not path.exists():
+        return 0
+    if path.is_file():
+        return path.stat().st_size
+    return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
 def _safe_resolve_under(base: Path, rel: str) -> Path:
@@ -167,6 +181,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             "bgm_files": bgm_files,
             "voice_presets": VOICE_PRESETS,
             "budget_presets": BUDGET_PRESETS,
+            "ai_engines": AI_ENGINES,
             "skills": skills,
         }
 
@@ -203,6 +218,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                     budget = check_render_budget(ep, ledger_path)
                     refs = sorted(layout.refs_dir.glob("*.*")) if layout.refs_dir.exists() else []
                     clips = sorted(layout.clips_dir.glob("scene_*.mp4")) if layout.clips_dir.exists() else []
+                    size_bytes = path.stat().st_size + _dir_size_bytes(layout.root)
                     items.append(
                         {
                             "filename": path.name,
@@ -221,6 +237,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                             "has_voiceover": (layout.audio_dir / "voiceover.mp3").exists(),
                             "clip_count": len(clips),
                             "has_final_video": (layout.final_dir / "final_9x16.mp4").exists(),
+                            "disk_size_mb": round(size_bytes / (1024 * 1024), 2),
                             "created_ts": created_ts,
                             "updated_ts": updated_ts,
                             "created_label": created_iso,
@@ -279,6 +296,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             "episode": ep.model_dump(),
             "estimated_credits": estimate_episode_credits(ep),
             "budget": budget.to_dict(),
+            "disk_size_mb": round((ep_path.stat().st_size + _dir_size_bytes(layout.root)) / (1024 * 1024), 2),
             "issues": [{"severity": i.severity, "code": i.code, "message": i.message} for i in issues],
             "assets": {
                 "folder": str(layout.root),
@@ -320,6 +338,8 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             raw["bgm_volume"] = float(payload.bgm_volume)
         if payload.enable_subtitles is not None:
             raw["enable_subtitles"] = bool(payload.enable_subtitles)
+        if payload.fast_cut_sync is not None:
+            raw["fast_cut_sync"] = bool(payload.fast_cut_sync)
         if payload.narrations and isinstance(raw.get("scenes"), list):
             for idx, text in enumerate(payload.narrations):
                 if idx < len(raw["scenes"]) and text.strip():
@@ -331,6 +351,38 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             return {"ok": True, **saved}
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/episodes/{filename}")
+    def api_delete_episode(filename: str) -> dict[str, object]:
+        ep_path = _safe_resolve_under(episodes_dir, filename)
+        if not ep_path.exists():
+            raise HTTPException(status_code=404, detail="Episode tidak ditemukan")
+
+        episode_id: str | None = None
+        try:
+            ep = load_episode(ep_path)
+            episode_id = ep.episode_id
+        except Exception:
+            pass
+
+        freed_bytes = ep_path.stat().st_size
+        deleted_output_dir: str | None = None
+
+        if episode_id:
+            ep_out = _safe_resolve_under(outputs_dir, episode_id)
+            if ep_out.exists() and ep_out.is_dir():
+                freed_bytes += _dir_size_bytes(ep_out)
+                shutil.rmtree(ep_out)
+                deleted_output_dir = str(ep_out)
+
+        ep_path.unlink(missing_ok=True)
+        return {
+            "ok": True,
+            "deleted_filename": ep_path.name,
+            "episode_id": episode_id,
+            "deleted_output_dir": deleted_output_dir,
+            "freed_mb": round(freed_bytes / (1024 * 1024), 2),
+        }
 
     @app.post("/api/research")
     def api_research(payload: ResearchPayload) -> dict[str, object]:
@@ -360,8 +412,12 @@ def create_app(project_root: Path | None = None) -> FastAPI:
                 bgm_path=payload.bgm_path,
             )
             job.append(f"      Ditemukan {len(brief.live_trends_id)} tren live Google Trends ID.")
-            job.append(f"[2/3] Memanggil Kilo CLI model '{payload.kilo_model}' untuk menulis script YAML...")
-            saved = generate_script_via_kilo(root, prompt, model=payload.kilo_model)
+            if payload.engine == "antigravity":
+                job.append(f"[2/3] Memanggil Google Antigravity CLI (`agy`) model '{payload.model}' (effort high)...")
+                saved = generate_script_via_antigravity(root, prompt, model=payload.model)
+            else:
+                job.append(f"[2/3] Memanggil Kilo CLI model '{payload.model}' (tanpa ChatGPT)...")
+                saved = generate_script_via_kilo(root, prompt, model=payload.model)
             job.append(f"[3/3] Script valid & tersimpan: episodes/{saved['filename']}")
             return {"saved": saved, "brief": brief.to_dict()}
 
@@ -380,6 +436,8 @@ def create_app(project_root: Path | None = None) -> FastAPI:
             ep.bgm_volume = float(payload.bgm_volume)
         if payload.enable_subtitles is not None:
             ep.enable_subtitles = bool(payload.enable_subtitles)
+        if payload.fast_cut_sync is not None:
+            ep.fast_cut_sync = bool(payload.fast_cut_sync)
         return ep
 
     @app.post("/api/jobs/preview")

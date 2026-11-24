@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -18,6 +19,10 @@ from roblox_meme_flow.prompt_builder import (
     build_reference_prompts,
     build_scene_video_prompts,
     build_storyboard_prompt,
+)
+from roblox_meme_flow.win_silent import (
+    silent_subprocess_kwargs,
+    suppress_offscreen_chromium_focus,
 )
 
 AT_HANDLE_RE = re.compile(r"@([A-Z][A-Za-z0-9]*)")
@@ -111,6 +116,7 @@ def build_gflow_manifest(
         }
     )
 
+    model_ref_cap = 3 if ep.video_model.strip().lower().startswith("veo-") else 7
     for scene in scenes:
         clip_out = layout.clips_dir / f"scene_{scene['scene_number']:02d}.mp4"
         wire_scene = strip_at_handles_for_gflow(str(scene["prompt"]))
@@ -129,9 +135,11 @@ def build_gflow_manifest(
             str(clip_out),
             "--json",
         ]
+        added_refs = 0
         for ref_handle in scene["references"]:  # type: ignore[union-attr]
-            if ref_handle in ref_files:
+            if ref_handle in ref_files and added_refs < model_ref_cap:
                 args.extend(["--ref", str(ref_files[ref_handle])])
+                added_refs += 1
 
         if not spend:
             args.extend(["--max-credits", "0"])
@@ -176,6 +184,12 @@ def _resolve_ref_args(args: list[str]) -> list[str]:
     return resolved
 
 
+def _silent_gflow_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env.setdefault("GFLOW_CLI_BROWSER_WINDOW_POSITION", "-30000,-30000")
+    return env
+
+
 def get_live_flow_credits() -> int | None:
     """Read live Google Flow credit balance via `gflow credits user` (0 credits spent)."""
     gflow_bin = find_gflow_executable()
@@ -186,7 +200,9 @@ def get_live_flow_credits() -> int | None:
         capture_output=True,
         text=True,
         timeout=30,
+        env=_silent_gflow_env(),
         check=False,
+        **silent_subprocess_kwargs(),
     )
     if proc.returncode != 0:
         return None
@@ -269,13 +285,16 @@ def write_and_optionally_run_flow(
             continue
 
         run_args = _resolve_ref_args([str(a) for a in step["args"]])
-        _emit(f"-> Running [{step['stage']}] {step['target']}...")
-        proc = subprocess.run(
-            run_args,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        _emit(f"-> Running [{step['stage']}] {step['target']} (background)...")
+        with suppress_offscreen_chromium_focus():
+            proc = subprocess.run(
+                run_args,
+                capture_output=True,
+                text=True,
+                env=_silent_gflow_env(),
+                check=False,
+                **silent_subprocess_kwargs(),
+            )
         record = {
             "stage": step["stage"],
             "target": step["target"],

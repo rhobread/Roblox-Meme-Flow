@@ -30,7 +30,7 @@ class LocationAsset(BaseModel):
 
 class SceneSpec(BaseModel):
     scene_number: int = Field(..., ge=1)
-    beat: Literal["hook", "escalation", "twist", "outro"]
+    beat: Literal["hook", "setup", "escalation", "complication", "climax", "twist", "outro"]
     duration_seconds: Literal[3, 4, 5, 6, 8, 10] = 4
     characters: list[str] = Field(default_factory=list)
     location: str
@@ -50,7 +50,7 @@ class EpisodeSpec(BaseModel):
     image_model: str = "nano-2.1"
     video_model: str = "omni-1.2-flash"
     tts_voice: str = "id-ID-ArdiNeural"
-    tts_rate: str = "+16%"
+    tts_rate: str = "+18%"
     tts_pitch: str = "+28Hz"
     tts_pitch_shift: float = Field(
         default=1.18,
@@ -61,10 +61,20 @@ class EpisodeSpec(BaseModel):
     bgm_path: Optional[str] = "assets/bgm/in_this_town_bgm.mp3"
     bgm_volume: float = Field(default=0.16, ge=0.0, le=1.0)
     enable_subtitles: bool = True
+    fast_cut_sync: bool = Field(
+        default=True,
+        description="Trim silent tails and match each clip cut tightly to speech for nonstop viral pacing.",
+    )
+    scene_gap_seconds: float = Field(
+        default=0.10,
+        ge=0.0,
+        le=0.6,
+        description="Tiny breath gap between scenes in fast-cut mode (seconds).",
+    )
     style_bible: str = DEFAULT_STYLE_BIBLE
     characters: list[CharacterAsset] = Field(..., min_length=1)
     locations: list[LocationAsset] = Field(..., min_length=1)
-    scenes: list[SceneSpec] = Field(..., min_length=2, max_length=9)
+    scenes: list[SceneSpec] = Field(..., min_length=2, max_length=12)
 
     @property
     def total_duration_seconds(self) -> int:

@@ -206,6 +206,8 @@
     button.primary:hover { background: var(--primary-hover); }
     button.success { background: var(--green); border-color: var(--green); color: #fff; }
     button.success:hover { background: var(--green-hover); }
+    button.danger { background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+    button.danger:hover { background: var(--red); border-color: var(--red); color: #fff; }
     button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
     button.ghost:hover { color: var(--text); background: var(--surface-2); }
     button.lg { padding: 11px 18px; font-size: 14px; }
@@ -525,7 +527,9 @@
             </div>
             <div class="btn-row">
               <span id="heroCreditBadge" class="pill">~0 kredit</span>
+              <span id="heroSizeBadge" class="pill">💾 0 MB</span>
               <button onclick="openFolder()">📁 Buka Folder</button>
+              <button class="danger" onclick="deleteCurrentEpisode()">🗑️ Hapus</button>
             </div>
           </div>
 
@@ -601,9 +605,12 @@
                   <input id="optBgmVol" type="range" min="0" max="0.45" step="0.02" value="0.16"
                          oninput="document.getElementById('bgmVolLabel').textContent = Math.round(this.value*100)+'%'" />
                 </div>
-                <div style="padding-top:16px;">
+                <div style="padding-top:10px;display:flex;flex-direction:column;gap:8px;">
                   <label class="check-row" style="font-size:13px;color:var(--text);">
                     <input type="checkbox" id="chkSubtitles" checked /> Tampilkan Subtitle Meme di Video
+                  </label>
+                  <label class="check-row" style="font-size:13px;color:var(--text);" title="Otomatis potong jeda diam di akhir tiap scene agar suara langsung ngegas nonstop">
+                    <input type="checkbox" id="chkFastCut" checked /> ⚡ Pacing Cepat (Hapus jeda lama antar scene)
                   </label>
                 </div>
               </div>
@@ -670,7 +677,18 @@
 
         <div class="grid-2" style="margin-bottom:14px;">
           <div>
-            <label>Target Biaya Kredit (Top-up +50/hari)</label>
+            <label>Mesin AI Generator (Google — Tanpa ChatGPT)</label>
+            <select id="genEngine" onchange="onEngineChange()"></select>
+          </div>
+          <div>
+            <label>Model AI</label>
+            <input id="genModel" type="text" value="gemini-4-neon" />
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:14px;">
+          <div>
+            <label>Target Durasi &amp; Biaya Kredit (Budget 80-85 cr/hari)</label>
             <select id="genBudget"></select>
           </div>
           <div>
@@ -681,19 +699,13 @@
 
         <div style="margin-bottom:14px;">
           <label>Ide / Topik Spesifik (Opsional — boleh dikosongkan biar AI pilih dari tren viral)</label>
-          <input id="genTopic" type="text" placeholder="Contoh: anak kos lupa matikan kipas / kelinci belajar berhitung" />
+          <input id="genTopic" type="text" placeholder="Contoh: anak kos nyolong wifi tetangga / kelinci belajar berhitung" />
         </div>
 
         <div class="btn-row">
-          <button class="primary lg" onclick="runResearch()">🔍 1. Riset Tren Viral Sekarang</button>
-          <button class="success lg" onclick="generateViaKilo()">🤖 2. Buat Script Otomatis (Kilo AI)</button>
+          <button class="primary lg" onclick="runResearch()">🔍 1. Riset Tren Viral + Prompt T3 (Google Gemini)</button>
+          <button class="success lg" onclick="generateViaAI()">⚡ 2. Buat Script Otomatis (Antigravity / Gemini)</button>
         </div>
-
-        <details style="margin-top:14px;">
-          <summary>Pengaturan Model Kilo CLI</summary>
-          <label>Model Kilo (default: openai/gpt-6.2-sol)</label>
-          <input id="genKiloModel" type="text" value="openai/gpt-6.2-sol" />
-        </details>
       </div>
 
       <!-- STEP 2: LIVE TRENDS & T3 CODE BRIDGE -->
@@ -733,7 +745,7 @@
         <div class="card-header">
           <div>
             <h2 class="card-title">💰 Saldo &amp; Limitasi Kredit Harian Google Flow</h2>
-            <p class="subtext">Google Flow menambah +50 kredit setiap hari. Dengan preset 4×4s (48 kredit), kamu bisa bikin 1 video tiap hari selamanya.</p>
+            <p class="subtext">Google Flow menambah +50 kredit/hari. Dengan cadangan ~978 kredit, budget <strong>80–85 kredit/video</strong> cukup untuk video panjang cepat <strong>30–45 detik (7–9 scene)</strong> setiap hari selama 30+ hari!</p>
           </div>
           <button class="primary" onclick="loadStatus(true)">🔄 Cek Saldo Live</button>
         </div>
@@ -756,7 +768,7 @@
         <div class="grid-2">
           <div>
             <label>Batas Kredit Maksimal per Hari</label>
-            <input id="setDailyLimit" type="number" value="50" min="10" />
+            <input id="setDailyLimit" type="number" value="85" min="10" />
           </div>
           <div>
             <label>Batas Jumlah Video per Hari</label>
@@ -842,6 +854,12 @@
         if (!budgetSel.options.length) {
           for (const [k, v] of Object.entries(data.budget_presets)) budgetSel.add(new Option(v.label, k));
         }
+        const engSel = document.getElementById("genEngine");
+        if (engSel && !engSel.options.length && data.ai_engines) {
+          window._aiEngines = data.ai_engines;
+          for (const [k, v] of Object.entries(data.ai_engines)) engSel.add(new Option(v.label, k));
+          onEngineChange();
+        }
         const voiceGen = document.getElementById("genVoice");
         const voiceOpt = document.getElementById("optVoice");
         if (!voiceGen.options.length) {
@@ -915,12 +933,14 @@
           ? `<span class="tag done">✅ Siap Upload</span>`
           : (ep.has_storyboard ? `<span class="tag">🖼️ Storyboard</span>` : `<span class="tag">📝 Draft</span>`);
         const dateTag = ep.created_label ? `<span class="tag">📅 ${ep.created_label.slice(0, 10)}</span>` : "";
+        const sizeTag = ep.disk_size_mb > 0.1 ? `<span class="tag">💾 ${ep.disk_size_mb} MB</span>` : "";
         div.innerHTML = `
           <div class="ep-card-title">${ep.title_id || ep.filename}</div>
           <div class="ep-card-tags">
             <span class="tag ${isKids ? 'kids' : ''}">${isKids ? '🧸 Anak' : '😂 Meme'}</span>
-            <span class="tag">${ep.duration_seconds || 0}s · ~${ep.estimated_credits || 0} cr</span>
+            <span class="tag">${ep.scene_count || 0} scene · ~${ep.estimated_credits || 0} cr</span>
             ${statusTag}
+            ${sizeTag}
             ${dateTag}
           </div>
         `;
@@ -941,6 +961,7 @@
       const badge = document.getElementById("heroCreditBadge");
       badge.textContent = `~${b.estimated_episode_credits} kredit · ${b.allowed ? "Masuk Limit ✅" : "Melebihi Limit ⚠️"}`;
       badge.className = "pill " + (b.allowed ? "ok" : "warn");
+      document.getElementById("heroSizeBadge").textContent = `💾 ${data.disk_size_mb ?? 0} MB`;
       document.getElementById("budgetNote").textContent = b.reason;
 
       // Stepper states
@@ -955,6 +976,7 @@
       document.getElementById("optBgmVol").value = ep.bgm_volume ?? 0.16;
       document.getElementById("bgmVolLabel").textContent = Math.round((ep.bgm_volume ?? 0.16) * 100) + "%";
       document.getElementById("chkSubtitles").checked = ep.enable_subtitles !== false;
+      document.getElementById("chkFastCut").checked = ep.fast_cut_sync !== false;
       document.getElementById("optVoice").value = "";
 
       // Phone media preview
@@ -986,7 +1008,15 @@
       document.getElementById("editTitle").value = ep.title_id;
       document.getElementById("yamlEditor").value = data.yaml_text;
       const scenesBox = document.getElementById("scenesCards");
-      const beatNames = { hook: "🎣 Hook", escalation: "📈 Eskalasi", twist: "🤯 Plot Twist", outro: "🎯 Outro" };
+      const beatNames = {
+        hook: "🎣 Hook",
+        setup: "⚡ Setup",
+        escalation: "📈 Eskalasi",
+        complication: "🔥 Konflik",
+        climax: "💥 Klimaks",
+        twist: "🤯 Plot Twist",
+        outro: "🎯 Outro",
+      };
       scenesBox.innerHTML = ep.scenes.map((s, idx) => `
         <div class="scene-card">
           <div class="scene-top">
@@ -1015,6 +1045,7 @@
             bgm_path: document.getElementById("optBgm").value,
             bgm_volume: Number(document.getElementById("optBgmVol").value),
             enable_subtitles: document.getElementById("chkSubtitles").checked,
+            fast_cut_sync: document.getElementById("chkFastCut").checked,
             narrations,
           }),
         });
@@ -1058,6 +1089,33 @@
       }
     }
 
+    function onEngineChange() {
+      const eng = document.getElementById("genEngine").value;
+      if (window._aiEngines && window._aiEngines[eng]) {
+        document.getElementById("genModel").value = window._aiEngines[eng].default_model;
+      }
+    }
+
+    async function deleteCurrentEpisode() {
+      if (!currentFilename || !currentEpisodeData) return;
+      const title = currentEpisodeData.episode?.title_id || currentFilename;
+      const mb = currentEpisodeData.disk_size_mb ?? 0;
+      const ok = confirm(
+        `Hapus PERMANEN episode "${title}"?\n\n` +
+        `File script YAML dan SEMUA folder output (video, klip, gambar, audio, log sebesar ~${mb} MB) akan dihapus permanen agar tidak memakan space.`
+      );
+      if (!ok) return;
+      try {
+        const res = await api(`/api/episodes/${encodeURIComponent(currentFilename)}`, { method: "DELETE" });
+        currentFilename = null;
+        currentEpisodeData = null;
+        showToast(`Episode dihapus! Space bebas: ${res.freed_mb} MB`, "ok");
+        await loadEpisodes();
+      } catch (err) {
+        showToast("Gagal menghapus: " + err.message, "err");
+      }
+    }
+
     function audioPayload() {
       return {
         filename: currentFilename,
@@ -1066,6 +1124,7 @@
         bgm_path: document.getElementById("optBgm").value,
         bgm_volume: Number(document.getElementById("optBgmVol").value),
         enable_subtitles: document.getElementById("chkSubtitles").checked,
+        fast_cut_sync: document.getElementById("chkFastCut").checked,
       };
     }
 
@@ -1139,8 +1198,10 @@
       showToast("Prompt tersalin! Paste ke T3 Code lalu paste hasil YAML di bawah.");
     }
 
-    async function generateViaKilo() {
+    async function generateViaAI() {
       try {
+        const engine = document.getElementById("genEngine").value;
+        const model = document.getElementById("genModel").value;
         const res = await api("/api/generate-script", {
           method: "POST",
           body: JSON.stringify({
@@ -1149,10 +1210,11 @@
             voice_preset: document.getElementById("genVoice").value,
             topic_hint: document.getElementById("genTopic").value,
             bgm_path: document.getElementById("optBgm").value || "assets/bgm/in_this_town_bgm.mp3",
-            kilo_model: document.getElementById("genKiloModel").value,
+            engine,
+            model,
           }),
         });
-        pollJob(res.job_id, "Membuat Script Viral via Kilo AI", async (done) => {
+        pollJob(res.job_id, `Membuat Script Viral Cepat (${model})`, async (done) => {
           await loadEpisodes();
           if (done.result && done.result.saved) await selectEpisode(done.result.saved.filename);
         });

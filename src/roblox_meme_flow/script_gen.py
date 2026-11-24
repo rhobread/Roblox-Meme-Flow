@@ -13,35 +13,51 @@ from roblox_meme_flow.credit_guard import BUDGET_PRESETS
 from roblox_meme_flow.models import EpisodeSpec, load_episode
 from roblox_meme_flow.researcher import ViralResearchBrief, build_viral_research_brief
 from roblox_meme_flow.validator import has_errors, validate_episode
+from roblox_meme_flow.win_silent import silent_subprocess_kwargs
 
 JAKARTA_TZ = dt.timezone(dt.timedelta(hours=7), "WIB")
 
+AI_ENGINES: dict[str, dict[str, str]] = {
+    "antigravity": {
+        "label": "Google Antigravity CLI (Gemini 4 Neon High - Tanpa ChatGPT)",
+        "default_model": "gemini-4-neon",
+    },
+    "kilo_google": {
+        "label": "Kilo CLI - Google Gemini (Tanpa Langganan ChatGPT)",
+        "default_model": "kilo/google/gemini-2.5-pro",
+    },
+    "kilo_custom": {
+        "label": "Kilo CLI - Model Lain (Custom)",
+        "default_model": "kilo/google/gemini-3-flash",
+    },
+}
+
 VOICE_PRESETS: dict[str, dict[str, object]] = {
     "preset_a": {
-        "label": "Preset A - Cowok High-Pitch Lucu (Default Meme)",
+        "label": "Preset A - Cowok High-Pitch Lucu Cepat (Default Meme)",
         "tts_voice": "id-ID-ArdiNeural",
-        "tts_rate": "+16%",
+        "tts_rate": "+18%",
         "tts_pitch": "+28Hz",
         "tts_pitch_shift": 1.18,
     },
     "preset_b": {
-        "label": "Preset B - Cewek TikTok Enerjik",
+        "label": "Preset B - Cewek TikTok Enerjik Cepat",
         "tts_voice": "id-ID-GadisNeural",
-        "tts_rate": "+16%",
+        "tts_rate": "+18%",
         "tts_pitch": "+22Hz",
         "tts_pitch_shift": 1.12,
     },
     "preset_c": {
         "label": "Preset C - Chipmunk Shitpost Super Cempreng",
         "tts_voice": "id-ID-ArdiNeural",
-        "tts_rate": "+18%",
+        "tts_rate": "+20%",
         "tts_pitch": "+40Hz",
         "tts_pitch_shift": 1.30,
     },
     "preset_d": {
         "label": "Preset D - Ceria Animasi Anak-Anak",
         "tts_voice": "id-ID-GadisNeural",
-        "tts_rate": "+10%",
+        "tts_rate": "+12%",
         "tts_pitch": "+24Hz",
         "tts_pitch_shift": 1.12,
     },
@@ -64,7 +80,7 @@ def list_existing_episode_summaries(episodes_dir: Path) -> list[str]:
 def build_t3_generation_prompt(
     project_root: Path,
     content_mode: Literal["meme_roblox_id", "kids_animation_id"] = "meme_roblox_id",
-    budget_preset: str = "hemat_50",
+    budget_preset: str = "long_veo_80",
     voice_preset: str = "preset_a",
     topic_hint: str = "",
     bgm_path: str = "assets/bgm/in_this_town_bgm.mp3",
@@ -73,7 +89,7 @@ def build_t3_generation_prompt(
     brief = research_brief or build_viral_research_brief(
         content_mode=content_mode, topic_hint=topic_hint, fetch_live=True
     )
-    budget = BUDGET_PRESETS.get(budget_preset, BUDGET_PRESETS["hemat_50"])
+    budget = BUDGET_PRESETS.get(budget_preset, BUDGET_PRESETS["long_veo_80"])
     voice = VOICE_PRESETS.get(voice_preset, VOICE_PRESETS["preset_a"])
     existing = list_existing_episode_summaries(project_root / "episodes")
     today_str = dt.datetime.now(JAKARTA_TZ).strftime("%Y-%m-%d")
@@ -84,17 +100,25 @@ def build_t3_generation_prompt(
         else ".agents/skills/di-dunia-ini-roblox-id/SKILL.md"
     )
     existing_block = "\n".join(existing) if existing else "- (belum ada episode)"
+    num_scenes = int(budget["scenes"])
+    dur_per_scene = int(budget["duration_seconds"])
+    words_target = max(9, int(dur_per_scene * 3.2))
 
-    prompt = f"""Buat 1 episode YAML baru yang siap viral untuk YouTube Shorts, TikTok, dan Instagram Reels!
+    prompt = f"""Buat 1 episode YAML baru yang FAST-PACED (pacing cepat, banyak scene, zero jeda bosan) dan siap viral untuk YouTube Shorts, TikTok, dan Instagram Reels!
 
 Ikuti skill: `{skill_rel}` dan `.agents/skills/google-flow-scripting/SKILL.md`.
 
 {brief.to_prompt_block()}
 
-## Constraint Wajib (Budget Kredit & Teknis)
+## Constraint Wajib (Pacing Cepat 30-45s & Budget 80-85 Kredit)
 - Tanggal WIB: `{today_str}` (gunakan prefix `episode_id: "{today_str}-..."`)
 - `content_mode: "{content_mode}"`
-- Budget preset `{budget_preset}`: WAJIB tepat **{budget['scenes']} scene**, masing-masing `duration_seconds: {budget['duration_seconds']}`, `video_model: "{budget['video_model']}"` (estimasi **{budget['estimated_credits']} kredit** agar muat 1 video/hari dari top-up +50 kredit harian Google Flow!).
+- Budget preset `{budget_preset}`: WAJIB tepat **{num_scenes} scene**, masing-masing `duration_seconds: {dur_per_scene}`, `video_model: "{budget['video_model']}"` (estimasi **{budget['estimated_credits']} kredit**).
+- Gunakan alur beat yang kaya dan cepat: `hook` -> `setup` -> `escalation` -> `complication` -> `climax` -> `twist` -> `outro` (sesuaikan jumlah {num_scenes} scene).
+- PENTING SOAL PACING CEPAT:
+  - Tulis `narration_id` berbahasa Indonesia yang padat, lincah, natural, dan **mengisi penuh** durasi tiap scene (~{words_target} kata per scene) agar narator langsung ngegas terus tanpa jeda kosong yang lama!
+  - Setiap scene HARUS membawa aksi visual baru / perubahan angle kamera / ekspresi ekstrem supaya penonton tidak bosan.
+  - Set `fast_cut_sync: true` dan `scene_gap_seconds: 0.10`.
 - `aspect_ratio: "9:16"`, `image_model: "nano-2.1"`
 - Audio preset:
   - `tts_voice: "{voice['tts_voice']}"`
@@ -104,9 +128,9 @@ Ikuti skill: `{skill_rel}` dan `.agents/skills/google-flow-scripting/SKILL.md`.
   - `bgm_path: "{bgm_path}"`
   - `bgm_volume: 0.16`
 - Semua karakter dan lokasi wajib `@PascalCase` unik dan WAJIB disebut eksplisit di setiap `scene.visual_prompt`.
+- Maksimal 2 karakter + 1 lokasi per scene jika memakai `veo-lite` (limit 3 referensi).
 - DILARANG memakai em dash (`—`) di mana pun.
-- DILARANG menulis kata merek `Roblox`, `Pixar`, `Disney`, `Cocomelon` di `style_bible` atau `visual_prompt` (deskripsikan gaya visual blocky/toy 3D secara deskriptif).
-- `narration_id` berbahasa Indonesia natural, singkat (pas dibaca dalam {budget['duration_seconds']} detik per scene!), punchy, dan cocok dengan algoritma YT Shorts + TikTok + IG Reels.
+- DILARANG menulis kata merek `Roblox`, `Pixar`, `Disney`, `Cocomelon` di `style_bible` atau `visual_prompt`.
 - Jangan duplikat ide dari episode yang sudah ada di bawah ini:
 {existing_block}
 
@@ -123,7 +147,6 @@ def extract_yaml_block(text: str) -> str:
     generic = re.findall(r"```\s*\n(.*?)```", text, flags=re.DOTALL)
     if generic:
         return generic[-1].strip()
-    # Fallback: find first line starting with episode_id:
     idx = text.find("episode_id:")
     if idx != -1:
         return text[idx:].strip()
@@ -156,16 +179,62 @@ def validate_and_save_yaml(yaml_text: str, episodes_dir: Path, filename: str | N
     }
 
 
+def generate_script_via_antigravity(
+    project_root: Path,
+    prompt: str,
+    model: str = "gemini-4-neon",
+    effort: str = "high",
+    timeout_s: int = 240,
+) -> dict[str, object]:
+    agy_bin = shutil.which("agy")
+    if not agy_bin:
+        raise RuntimeError(
+            "Antigravity CLI (`agy`) tidak ditemukan di PATH. Gunakan tombol 'Salin Prompt ke T3 Code'."
+        )
+
+    cmd = [
+        agy_bin,
+        "--print",
+        "--model",
+        model.strip() or "gemini-4-neon",
+        "--effort",
+        effort,
+        "--disable-slash-commands",
+        "--output-format",
+        "text",
+        prompt,
+    ]
+    proc = subprocess.run(
+        cmd,
+        cwd=str(project_root),
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+        check=False,
+        **silent_subprocess_kwargs(),
+    )
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout)[-1200:]
+        if "sign in" in err.lower():
+            raise RuntimeError(
+                "Antigravity CLI (`agy`) belum login di terminal. Buka PowerShell lalu ketik `agy` sekali untuk login, "
+                "atau gunakan 'Salin Prompt ke T3 Code' (yang sudah login Gemini 4 Neon High)."
+            )
+        raise RuntimeError(f"Antigravity CLI gagal (exit {proc.returncode}):\n{err}")
+
+    return validate_and_save_yaml(proc.stdout, project_root / "episodes")
+
+
 def generate_script_via_kilo(
     project_root: Path,
     prompt: str,
-    model: str = "openai/gpt-6.2-sol",
+    model: str = "kilo/google/gemini-2.5-pro",
     timeout_s: int = 180,
 ) -> dict[str, object]:
     kilo_bin = shutil.which("kilo") or shutil.which("kilocode")
     if not kilo_bin:
         raise RuntimeError(
-            "Kilo CLI tidak ditemukan di PATH. Gunakan tombol 'Salin Prompt ke T3 Code' lalu paste YAML hasil T3 ke editor."
+            "Kilo CLI tidak ditemukan di PATH. Gunakan Antigravity CLI atau 'Salin Prompt ke T3 Code'."
         )
 
     cmd = [kilo_bin, "run", "--dir", str(project_root)]
@@ -179,13 +248,13 @@ def generate_script_via_kilo(
         text=True,
         timeout=timeout_s,
         check=False,
+        **silent_subprocess_kwargs(),
     )
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout)[-1200:]
         raise RuntimeError(
             f"Kilo CLI gagal (exit {proc.returncode}) dengan model '{model}'. "
-            f"Coba ganti model (misal ai_mas_wayan/gpt-6.2-sol) atau gunakan T3 Code Bridge.\nDetail: {err}"
+            f"Coba pilih Google Antigravity (`agy`) atau 'Salin Prompt ke T3 Code'.\nDetail: {err}"
         )
 
-    saved = validate_and_save_yaml(proc.stdout, project_root / "episodes")
-    return saved
+    return validate_and_save_yaml(proc.stdout, project_root / "episodes")
