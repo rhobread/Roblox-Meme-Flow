@@ -53,6 +53,17 @@ def main() -> int:
     project_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(project_root)
 
+    # Under pythonw.exe on Windows, sys.stdout/sys.stderr are None, which crashes uvicorn's
+    # default TTY log formatter. Redirect both to a local log file and disable TTY log_config.
+    log_file = project_root / "outputs" / "desktop_launcher.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    if sys.stdout is None or sys.stderr is None:
+        fh = open(log_file, "a", encoding="utf-8", buffering=1)
+        if sys.stdout is None:
+            sys.stdout = fh
+        if sys.stderr is None:
+            sys.stderr = fh
+
     started_here = False
     server = None
 
@@ -62,7 +73,13 @@ def main() -> int:
         from roblox_meme_flow.web_ui import create_app
 
         app = create_app(project_root)
-        config = uvicorn.Config(app, host=HOST, port=PORT, log_level="warning", access_log=False)
+        config = uvicorn.Config(
+            app,
+            host=HOST,
+            port=PORT,
+            log_config=None,
+            access_log=False,
+        )
         server = uvicorn.Server(config)
         # Prevent uvicorn from installing signal handlers in non-main thread
         server.install_signal_handlers = lambda: None  # type: ignore[method-assign]
