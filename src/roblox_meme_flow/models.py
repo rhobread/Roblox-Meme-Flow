@@ -52,7 +52,7 @@ class EpisodeSpec(BaseModel):
     tts_rate: str = "+16%"
     tts_pitch: str = "+28Hz"
     tts_pitch_shift: float = Field(
-        default=1.16,
+        default=1.18,
         ge=0.75,
         le=1.5,
         description="FFmpeg pitch shift multiplier (1.0=normal, 1.12-1.25=comedic Roblox meme pitch).",
