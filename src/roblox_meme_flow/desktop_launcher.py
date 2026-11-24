@@ -119,6 +119,35 @@ def _terminate_own_descendants() -> None:
         pass
 
 
+def _maybe_stop_stale_server(url: str) -> None:
+    """If an older Studio server is still listening on PORT, ask it to exit so new code loads."""
+    import json
+
+    from roblox_meme_flow.web_ui import compute_code_fingerprint
+
+    expected = compute_code_fingerprint()
+    try:
+        with urllib.request.urlopen(f"{url}/api/status?refresh_credits=false", timeout=1.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if data.get("code_fingerprint") == expected:
+            return
+    except Exception:
+        return
+
+    try:
+        req = urllib.request.Request(f"{url}/api/admin/restart-if-idle", method="POST", data=b"")
+        with urllib.request.urlopen(req, timeout=2.0):
+            pass
+    except Exception:
+        return
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if not _is_port_open(HOST, PORT):
+            return
+        time.sleep(0.25)
+
+
 def main() -> int:
     project_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(project_root)
@@ -146,6 +175,9 @@ def main() -> int:
     started_here = False
     server = None
     app = None
+
+    if _is_port_open(HOST, PORT):
+        _maybe_stop_stale_server(APP_URL)
 
     if not _is_port_open(HOST, PORT):
         import uvicorn
@@ -199,6 +231,9 @@ def main() -> int:
                 time.sleep(1.5)
                 snap = app.state.lifecycle_snapshot()
                 browser_exited = True if proc is None else (proc.poll() is not None)
+                if getattr(app.state, "shutdown_requested", False) and not bool(snap["has_running_jobs"]):
+                    print("[SHUTDOWN] Stale server replaced by newer Studio launch.", flush=True)
+                    break
                 if should_auto_shutdown(
                     now=time.monotonic(),
                     started_at=float(snap["started_at"]),

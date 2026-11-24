@@ -42,6 +42,13 @@ from roblox_meme_flow.validator import has_errors, validate_episode
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+def compute_code_fingerprint() -> str:
+    """Return a deterministic fingerprint of installed package source mtimes so launcher detects stale servers."""
+    pkg_dir = Path(__file__).resolve().parent
+    parts = [f"{p.name}:{int(p.stat().st_mtime_ns)}" for p in sorted(pkg_dir.glob("*.py"))]
+    return "|".join(parts)
+
+
 @dataclass
 class JobState:
     job_id: str
@@ -167,6 +174,8 @@ def create_app(project_root: Path | None = None) -> FastAPI:
 
     app.state.lifecycle_snapshot = _lifecycle_snapshot
     app.state.has_running_jobs = _has_running_jobs
+    app.state.code_fingerprint = compute_code_fingerprint()
+    app.state.shutdown_requested = False
 
     def _ensure_no_conflict_flow_job(kind: str) -> None:
         if kind not in {"preview", "render", "revoice"}:
@@ -227,6 +236,13 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         _mark_ui_closing()
         return {"ok": True}
 
+    @app.post("/api/admin/restart-if-idle")
+    def api_restart_if_idle() -> dict[str, object]:
+        if _has_running_jobs():
+            return {"ok": False, "reason": "running_jobs"}
+        app.state.shutdown_requested = True
+        return {"ok": True}
+
     @app.get("/api/auth/antigravity/status")
     def api_agy_status(refresh: bool = True) -> dict[str, object]:
         return agy_auth.get_state(refresh_auth=refresh)
@@ -263,6 +279,7 @@ def create_app(project_root: Path | None = None) -> FastAPI:
         )
         return {
             "project_root": str(root),
+            "code_fingerprint": app.state.code_fingerprint,
             "live_credits": live_credits,
             "policy": {
                 "daily_credit_limit": policy.daily_credit_limit,
