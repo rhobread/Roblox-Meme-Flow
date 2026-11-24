@@ -153,7 +153,16 @@ def restore_hidden_user_chromium_windows() -> int:
 
     user32 = ctypes.windll.user32
     SW_SHOWMINNOACTIVE = 7
+    GW_OWNER = 4
     WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    class RECT(ctypes.Structure):
+        _fields_ = [
+            ("left", wintypes.LONG),
+            ("top", wintypes.LONG),
+            ("right", wintypes.LONG),
+            ("bottom", wintypes.LONG),
+        ]
 
     restored = 0
 
@@ -161,13 +170,20 @@ def restore_hidden_user_chromium_windows() -> int:
         nonlocal restored
         if user32.IsWindowVisible(hwnd):
             return True
-        if not user32.IsIconic(hwnd):
+        if user32.GetWindow(hwnd, GW_OWNER):
             return True
         cls_buf = ctypes.create_unicode_buffer(128)
         user32.GetClassNameW(hwnd, cls_buf, 128)
         if cls_buf.value != "Chrome_WidgetWin_1":
             return True
         if user32.GetWindowTextLengthW(hwnd) <= 0:
+            return True
+        rect = RECT()
+        has_rect = bool(user32.GetWindowRect(hwnd, ctypes.byref(rect)))
+        is_minimized_or_offscreen = bool(user32.IsIconic(hwnd)) or (
+            has_rect and (int(rect.left) <= -10000 or int(rect.top) <= -10000)
+        )
+        if not is_minimized_or_offscreen:
             return True
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
